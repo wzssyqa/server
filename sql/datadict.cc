@@ -167,7 +167,7 @@ Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name,
     if (is_versioned)
     {
       extra2_fields extra2;
-      dd_read_extra2(frm_image, state.st_size, &extra2);
+      dd_read_extra2(frm_image, (size_t)state.st_size, &extra2);
       *is_versioned = extra2.system_period;
 
     }
