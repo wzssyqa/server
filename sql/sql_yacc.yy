@@ -1027,7 +1027,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  OUTFILE
 %token  OUT_SYM                       /* SQL-2003-R */
 %token  OVER_SYM
-%token  OVERLAPS
 %token  PAGE_CHECKSUM_SYM
 %token  PARAM_MARKER
 %token  PARSE_VCOL_EXPR_SYM
@@ -1410,6 +1409,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  OPEN_SYM                      /* SQL-2003-R */
 %token  <kwd>  OPTIONS_SYM
 %token  <kwd>  OPTION                        /* SQL-2003-N */
+%token  <kwd>  OVERLAPS
 %token  <kwd>  OWNER_SYM
 %token  <kwd>  PACK_KEYS_SYM
 %token  <kwd>  PAGE_SYM
@@ -10868,6 +10868,12 @@ geometry_function:
                          Item_func_spatial_precise_rel(thd, $3, $5,
                                                  Item_func::SP_CONTAINS_FUNC));
           }
+        | OVERLAPS '(' expr ',' expr ')'
+          {
+            $$= GEOM_NEW(thd,
+                         Item_func_spatial_mbr_rel(thd, $3, $5,
+                                                   Item_func::SP_OVERLAPS_FUNC));
+          }
         | GEOMETRYCOLLECTION '(' expr_list ')'
           {
             $$= GEOM_NEW(thd,
@@ -15798,6 +15804,7 @@ keyword_sp_var_and_label:
         | ONE_SYM
         | ONLINE_SYM
         | ONLY_SYM
+        | OVERLAPS
         | PACKAGE_SYM
         | PACK_KEYS_SYM
         | PAGE_SYM
