@@ -1698,7 +1698,7 @@ innobase_find_fk_index(
 		if (!(index->type & DICT_FTS)
 		    && dict_foreign_qualify_index(
 			    table, col_names, columns, n_cols,
-			    index, NULL, true, 0,
+			    index, NULL, true, 0, false,
 			    NULL, NULL, NULL)) {
 			for (ulint i = 0; i < n_drop_index; i++) {
 				if (index == drop_index[i]) {
@@ -1964,7 +1964,7 @@ innobase_get_foreign_key_info(
 						referenced_table, 0,
 						referenced_column_names,
 						i, index,
-						TRUE, FALSE,
+						TRUE, FALSE, false,
 						NULL, NULL, NULL);
 
 				DBUG_EXECUTE_IF(
@@ -5917,7 +5917,7 @@ innobase_check_foreign_key_index(
 			    foreign->n_fields, index,
 			    /*check_charsets=*/TRUE,
 			    /*check_null=*/FALSE,
-			    NULL, NULL, NULL)
+			    false, NULL, NULL, NULL)
 		    && NULL == innobase_find_equiv_index(
 			    foreign->referenced_col_names,
 			    foreign->n_fields,
@@ -5952,7 +5952,7 @@ innobase_check_foreign_key_index(
 			    foreign->n_fields, index,
 			    /*check_charsets=*/TRUE,
 			    /*check_null=*/FALSE,
-			    NULL, NULL, NULL)
+			    false, NULL, NULL, NULL)
 		    && NULL == innobase_find_equiv_index(
 			    foreign->foreign_col_names,
 			    foreign->n_fields,
@@ -8301,7 +8301,7 @@ innobase_update_foreign_try(
 				fk->type
 				& (DICT_FOREIGN_ON_DELETE_SET_NULL
 					| DICT_FOREIGN_ON_UPDATE_SET_NULL),
-				NULL, NULL, NULL);
+				false, NULL, NULL, NULL);
 			if (!fk->foreign_index) {
 				my_error(ER_FK_INCORRECT_OPTION,
 					 MYF(0), table_name, fk->id);

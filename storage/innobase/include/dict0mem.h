@@ -74,7 +74,10 @@ combination of types */
 				other flags */
 #define	DICT_VIRTUAL	128	/* Index on Virtual column */
 
-#define	DICT_IT_BITS	8	/*!< number of bits used for
+#define	DICT_PERIOD	256	/* Last two user fields treated as period
+				of the unique index */
+
+#define	DICT_IT_BITS	9	/*!< number of bits used for
 				SYS_INDEXES.TYPE */
 /* @} */
 
@@ -1703,6 +1706,13 @@ struct dict_table_t {
 				/*!< System Versioning: row start col index */
 	unsigned	vers_end:10;
 				/*!< System Versioning: row end col index */
+	unsigned	period_start:10;
+				/*!< Period start column index */
+	unsigned	period_end:10;
+				/*!< Period end column index */
+	bool		has_period:1;
+				/*!< True if table has period. In this case,
+				 * period_start and period_end have a meaning */
 	bool		is_system_db;
 				/*!< True if the table belongs to a system
 				database (mysql, information_schema or

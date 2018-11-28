@@ -7618,11 +7618,21 @@ Table_scope_and_contents_source_st::fix_period_fields(THD *thd,
 
   Table_period_info::start_end_t &period= period_info.period;
   List_iterator<Create_field> it(alter_info->create_list);
-  while (Create_field *f= it++)
+  for (uint fieldno= 0; Create_field *f= it++; fieldno++)
   {
-    if (period.start.streq(f->field_name) || period.end.streq(f->field_name))
+    if (period.start.streq(f->field_name))
     {
+      period_info.start_fieldno= fieldno;
       f->period= &period_info;
+    }
+    else if (period.end.streq(f->field_name))
+    {
+      period_info.end_fieldno= fieldno;
+      f->period= &period_info;
+    }
+
+    if (f->period)
+    {
       if (!(f->flags & EXPLICIT_NULL_FLAG))
         f->flags|= NOT_NULL_FLAG;
     }
