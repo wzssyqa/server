@@ -42,8 +42,7 @@
 #include "filesort.h"                    // change_double_for_sort
 #include "log_event.h"                   // class Table_map_log_event
 #include <m_ctype.h>
-#include "json_mysql_binary.h"
-#include "json_dom.h"                    // Json_dom, Json_wrapper
+#include "mysql_json.h"
 // Maximum allowed exponent value for converting string to decimal
 #define MAX_EXPONENT 1024
 
@@ -11158,97 +11157,6 @@ uint32 Field_blob::max_display_length() const
 /*****************************************************************************
  Mysql table 5.7 with json data handling
 *****************************************************************************/
-bool Field_mysql_json::val_json (Json_wrapper *wr)
-{
-  ASSERT_COLUMN_MARKED_FOR_READ;
-  DBUG_ASSERT(!is_null());
-
-  String tmp;
-  String *s= Field_blob::val_str(&tmp, &tmp);
-
-  /*
-    The empty string is not a valid JSON binary representation, so we
-    should have returned an error. However, sometimes an empty
-    Field_json object is created in order to retrieve meta-data.
-    Return a dummy value instead of raising an error. Bug#21104470.
-    The field could also contain an empty string after forcing NULL or
-    DEFAULT into a not nullable JSON column using lax error checking
-    (such as INSERT IGNORE or non-strict SQL mode). The JSON null
-    literal is used to represent the empty value in this case.
-    Bug#21437989.
-  */
- 
-  if (s->length() == 0)
-  {
-    Json_wrapper w(new (std::nothrow) Json_null());
-    wr->steal(&w);
-    return false;
-  }
-
-  json_mysql_binary::Value v(json_mysql_binary::parse_binary(s->ptr(), s->length()));
-  if (v.type() == json_mysql_binary::Value::ERROR)
-  {
-    /* purecov: begin inspected */ 
-    my_error(ER_INVALID_ON_UPDATE, MYF(0)); // ER_INVALID_JSON_BINARY_DATA
-    return true;
-    /* purecov: end */
-  }
-
-  Json_wrapper w(v);
-  wr->steal(&w);
-  return false;
-}
-/**
-  Read an offset or size field from a buffer. The offset could be either
-  a two byte unsigned integer or a four byte unsigned integer.
-
-  @param data  the buffer to read from
-  @param large tells if the large or small storage format is used; true
-               means read four bytes, false means read two bytes
-*/
-size_t read_offset_or_size(const char *data, bool large)
-{
-  return large ? uint4korr(data) : uint2korr(data);
-}
-
-bool parse_array_or_object(Field_mysql_json::enum_type t, const char *data, size_t len,
-                           bool large)
-{
-  //DBUG_ASSERT(t == Field_mysql_json::ARRAY || t == Field_mysql_json::OBJECT);
-  /*
-    Make sure the document is long enough to contain the two length fields
-    (both number of elements or members, and number of bytes).
-  */
-  const size_t offset_size= large ? LARGE_OFFSET_SIZE : SMALL_OFFSET_SIZE;
-  if (len < 2 * offset_size)
-    return true;
-  const size_t element_count= read_offset_or_size(data, large);
-  const size_t bytes= read_offset_or_size(data + offset_size, large);
-
-  // The value can't have more bytes than what's available in the data buffer.
-  if (bytes > len)
-    return true;
-
-  /*
-    Calculate the size of the header. It consists of:
-    - two length fields
-    - if it is a JSON object, key entries with pointers to where the keys
-      are stored
-    - value entries with pointers to where the actual values are stored
-  */
-  size_t header_size= 2 * offset_size;
-  if (t==Field_mysql_json::OBJECT)
-    header_size+= element_count *
-      (large ? KEY_ENTRY_SIZE_LARGE : KEY_ENTRY_SIZE_SMALL);
-  header_size+= element_count *
-    (large ? VALUE_ENTRY_SIZE_LARGE : VALUE_ENTRY_SIZE_SMALL);
-
-  // The header should not be larger than the full size of the value.
-  if (header_size > bytes)
-    return true;                             /* purecov: inspected */
-  //return Value(t, data, bytes, element_count, large);
-  return 1;
-}
 bool Field_mysql_json::parse_mysql(String *s, bool json_quoted,
                                    const char *func_name) const
 {
@@ -11289,7 +11197,7 @@ bool Field_mysql_json::parse_mysql(String *s, bool json_quoted,
   switch (type)
   {
   case JSONB_TYPE_SMALL_OBJECT:
-    return parse_array_or_object(Field_mysql_json::OBJECT, data1, len, false);
+    return parse_array_or_object(Field_mysql_json::enum_type::OBJECT, data1, len, false);
   case JSONB_TYPE_LARGE_OBJECT:
     return false; //this->parse_array_or_object(Field_mysql_json::OBJECT, data1, len, true);
   case JSONB_TYPE_SMALL_ARRAY:
