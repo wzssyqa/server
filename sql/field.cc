@@ -11199,16 +11199,77 @@ bool Field_mysql_json::val_json (Json_wrapper *wr)
   return false;
 }
 
+bool Field_mysql_json::parse_mysql(String *s, bool json_quoted,
+                                   const char *func_name) const
+{
+  // This code is part of mysql code val_json(wrapper)
+  /*
+    The empty string is not a valid JSON binary representation, so we
+    should have returned an error. However, sometimes an empty
+    Field_json object is created in order to retrieve meta-data.
+    Return a dummy value instead of raising an error. Bug#21104470.
+    The field could also contain an empty string after forcing NULL or
+    DEFAULT into a not nullable JSON column using lax error checking
+    (such as INSERT IGNORE or non-strict SQL mode). The JSON null
+    literal is used to represent the empty value in this case.
+    Bug#21437989.
+  */
+  const char *data= s->ptr();
+  size_t length= s->length();
+
+  if (length == 0)
+  {
+    //@todo anel will need to see how to handle this
+    //Json_wrapper w(new (std::nothrow) Json_null());
+    //wr->steal(&w);
+    return false;
+  }
+
+  // Each document should start with a one-byte type specifier.
+  if (length < 1)
+    return 1; //err();                             /* purecov: inspected */
+
+  // anel Parse JSON value => part of parse_value()
+
+  size_t type= data[0];
+
+  //const char* data1=data+1;
+  //size_t len=len-1;
+
+  switch (type)
+  {
+  case JSONB_TYPE_SMALL_OBJECT:
+    return false; //this->parse_array_or_object(Field_mysql_json::OBJECT, data1, len, false);
+  case JSONB_TYPE_LARGE_OBJECT:
+    return false; //this->parse_array_or_object(Field_mysql_json::OBJECT, data1, len, true);
+  case JSONB_TYPE_SMALL_ARRAY:
+    return false; //this->parse_array_or_object(Field_mysql_json::ARRAY, data1, len, false);
+  case JSONB_TYPE_LARGE_ARRAY:
+    return false; //parse_array_or_object(Field_mysql_json::ARRAY, data1, len, true);
+  default:
+    return false;//this->parse_scalar(type, data, len);
+  }
+
+
+}
  String *Field_mysql_json::val_str(String *buf1_tmp, String *buf2 __attribute__((unused)))
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
   String *buf1= Field_blob::val_str(buf1_tmp, buf2);
+  bool parsed= this->parse_mysql(buf1, true, field_name.str);
+  if(parsed)
+    buf1->append("Too");
+  else
+    buf1->length(0);
   //buf1->set("",0,charset());	// A bit safer than buf1->length(0);
-  buf1->length(0);
-
+  //buf1->length(0);
+  
+  /*
   Json_wrapper wr;
   if (is_null() || val_json(&wr) || wr.to_string(buf1, true, field_name.str))
     buf1->length(0);
+  return buf1;
+  */
   return buf1;
 }
 
