@@ -4920,7 +4920,7 @@ class Field_mysql_json :public Field_blob
      @param[in,out] buf1 string buffer for converting JSON value to string
     @param[in,out] buf2 unused
   */
-   enum enum_type
+  enum enum_type
   {
     OBJECT, ARRAY, STRING, INT, UINT, DOUBLE,
     LITERAL_NULL, LITERAL_TRUE, LITERAL_FALSE,
@@ -4930,8 +4930,12 @@ class Field_mysql_json :public Field_blob
   };
   String *val_str(String *, String *);
   bool parse_mysql(String*, bool, const char *) const;
-  bool parse_array_or_object();
-  bool parse_scalar();
+  //size_t read_offset_or_size(const char *, bool);
+  //enum_type type() const {return m_type;}
+  //bool parse_array_or_object(bool, const char *,size_t ,bool);
+  //bool parse_scalar();
+  //private:
+  //  const enum_type m_type;
 
 };
 
