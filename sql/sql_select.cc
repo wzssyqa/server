@@ -28371,11 +28371,10 @@ Item *remove_pushed_top_conjuncts(THD *thd, Item *cond)
   @param thd   The thread handler
 
   @details
-    The function checks that this is an upper level select and if so looks
-    through its tables searching for one whose handlerton owns a
-    create_select call-back function. If the call of this function returns
-    a select_handler interface object then the server will push the select
-    query into this engine.
+    The function traverses through all tables involved searching for one 
+    whose handlerton owns a create_select call-back function. If the call
+    of this function returns a select_handler interface object then the 
+    server will push the whole select query into this engine.
     This is a responsibility of the create_select call-back function to
     check whether the engine can execute the query.
 
@@ -28385,21 +28384,20 @@ Item *remove_pushed_top_conjuncts(THD *thd, Item *cond)
 
 select_handler *SELECT_LEX::find_select_handler(THD *thd)
 {
-  if (next_select())
-      return 0;
-  if (master_unit()->outer_select())
-    return 0;
-  for (TABLE_LIST *tbl= join->tables_list; tbl; tbl= tbl->next_local)
+  select_handler *sh = NULL;
+
+  for (auto tbl= thd->lex->query_tables; tbl; tbl= tbl->next_global)
   {
     if (!tbl->table)
       continue;
     handlerton *ht= tbl->table->file->partition_ht();
     if (!ht->create_select)
       continue;
-    select_handler *sh= ht->create_select(thd, this);
-    return sh;
+    sh= ht->create_select(thd, this);
+    if(sh)
+        break;
   }
-  return 0;
+  return sh;
 }
 
 
