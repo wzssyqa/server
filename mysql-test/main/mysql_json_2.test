@@ -1,0 +1,9 @@
+let $datadir=`select @@datadir`;
+
+# Create other table to test other data types
+--copy_file std_data/frm/test2.frm $datadir/test/t1.frm
+--copy_file std_data/frm/test2.MYI $datadir/test/t1.MYI
+--copy_file std_data/frm/test2.MYD $datadir/test/t1.MYD
+
+select * from test.t1;
+drop table t1;
