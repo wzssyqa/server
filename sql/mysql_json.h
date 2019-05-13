@@ -52,6 +52,8 @@
 #define VALUE_ENTRY_SIZE_SMALL    (1 + SMALL_OFFSET_SIZE)
 #define VALUE_ENTRY_SIZE_LARGE    (1 + LARGE_OFFSET_SIZE)
 
+/// The maximum number of nesting levels allowed in a JSON document.
+#define JSON_DOCUMENT_MAX_DEPTH 100
 
 /*
  @todo anel enums used in json_dom 
@@ -90,8 +92,58 @@
   };
 */
 
+/**
+  Json values in MySQL comprises the stand set of JSON values plus a
+  MySQL specific set. A Json _number_ type is subdivided into _int_,
+  _uint_, _double_ and _decimal_.
+
+  MySQL also adds four built-in date/time values: _date_, _time_,
+  _datetime_ and _timestamp_.  An additional _opaque_ value can
+  store any other MySQL type.
+
+  The enumeration is common to Json_dom and Json_wrapper.
+
+  The enumeration is also used by Json_wrapper::compare() to
+  determine the ordering when comparing values of different types,
+  so the order in which the values are defined in the enumeration,
+  is significant. The expected order is null < number < string <
+  object < array < boolean < date < time < datetime/timestamp <
+  opaque.}
+  */
+enum enum_json_type {
+  J_NULL,
+  J_DECIMAL,
+  J_INT,
+  J_UINT,
+  J_DOUBLE,
+  J_STRING,
+  J_OBJECT,
+  J_ARRAY,
+  J_BOOLEAN,
+  J_DATE,
+  J_TIME,
+  J_DATETIME,
+  J_TIMESTAMP,
+  J_OPAQUE,
+  J_ERROR
+};
+
+  /**
+  Extended type ids so that JSON_TYPE() can give useful type
+  names to certain sub-types of J_OPAQUE.
+*/
+enum enum_json_opaque_type {
+  J_OPAQUE_BLOB,
+  J_OPAQUE_BIT,
+  J_OPAQUE_GEOMETRY
+};
+
 // Prototypes
 size_t read_offset_or_size(const char *, bool);
-bool parse_array_or_object(Field_mysql_json::enum_type, const char *,size_t ,bool);
+bool parse_array_or_object(Field_mysql_json::enum_type,
+                           const char *,size_t , bool,
+                           size_t *const, size_t *const);
 bool parse_scalar();
+
+bool get_mysql_string(String*, size_t, const char*, size_t, bool, size_t,                             size_t, const char*, size_t);
 #endif  /* MYSQL_JSON_INCLUDED */ 
