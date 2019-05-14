@@ -1,0 +1,1154 @@
+SET SQL_MODE='only_full_group_by';
+CREATE TABLE t1(a INT, b INT, c INT, d INT);
+CREATE TABLE t2 (x INT, y BLOB, z BLOB, w BLOB);
+INSERT INTO t1 VALUES (1,2,1,1),(1,3,0,4),(2,4,2,2);
+INSERT INTO t2 VALUES (2,'aab','aab','x'),(1,'aa','b','.'),
+(1,'ddd','n ','s'), (1,'ddd','ddd ','d');
+#
+#
+# SELECT list checking
+#
+#
+SELECT 1 GROUP BY 1;
+1
+1
+SELECT 1 FROM t1 GROUP by t1.a;
+1
+1
+1
+SELECT t1.a,t1.c,MAX(t1.b)
+FROM t1
+WHERE t1.a=t1.c
+GROUP BY t1.a;
+a	c	MAX(t1.b)
+1	1	2
+2	2	4
+SELECT t1.a,t1.c,t1.d,MAX(t1.b)
+FROM t1
+WHERE t1.a=t1.c AND t1.a=t1.d
+GROUP BY t1.a;
+a	c	d	MAX(t1.b)
+1	1	1	2
+2	2	2	4
+SELECT t1.a,t1.c,t1.d,MAX(t1.b)
+FROM t1
+WHERE t1.a=t1.c AND t1.c=t1.d
+GROUP BY t1.a;
+a	c	d	MAX(t1.b)
+1	1	1	2
+2	2	2	4
+SELECT *
+FROM t1
+GROUP BY t1.a,t1.b,t1.c,t1.d;
+a	b	c	d
+1	2	1	1
+1	3	0	4
+2	4	2	2
+SELECT t1.a REGEXP '.*'
+FROM t1
+GROUP BY t1.a;
+t1.a REGEXP '.*'
+1
+1
+SELECT t1.a&t1.b
+FROM t1
+GROUP BY t1.a,t1.b;
+t1.a&t1.b
+0
+1
+0
+SELECT t1.a|t1.b,~t1.c
+FROM t1
+GROUP BY t1.a,t1.b,t1.c;
+t1.a|t1.b	~t1.c
+3	18446744073709551614
+3	18446744073709551615
+6	18446744073709551613
+SELECT t1.a,t1.c,MAX(t1.b)
+FROM t1
+GROUP BY t1.a;
+ERROR HY000: test.t1.c is not functionally dependent on GROUP BY fields
+SELECT t1.a+t1.c,MAX(t1.b)
+FROM t1
+GROUP BY t1.a;
+ERROR HY000: test.t1.c is not functionally dependent on GROUP BY fields
+SELECT t1.a
+FROM t1
+GROUP BY t1.a+1;
+ERROR HY000: test.t1.a is not functionally dependent on GROUP BY fields
+SELECT t1.a,t1.c,t1.d,MAX(t1.b)
+FROM t1
+WHERE t1.a=1 AND t1.c=t1.d
+GROUP BY t1.a;
+ERROR HY000: test.t1.c is not functionally dependent on GROUP BY fields
+SELECT *
+FROM t1
+GROUP BY t1.a;
+ERROR HY000: test.t1.b is not functionally dependent on GROUP BY fields
+#
+# NUMERIC functions
+#
+SELECT t1.a,t1.b
+FROM t1
+WHERE t1.a+2=t1.b+1/2
+GROUP BY t1.b;
+ERROR HY000: test.t1.a is not functionally dependent on GROUP BY fields
+SELECT t1.a,t1.b
+FROM t1
+WHERE t1.b+t1.c+1/2=t1.a+1/2
+GROUP BY t1.b,t1.c;
+a	b
+SELECT t1.a,t1.b
+FROM t1
+WHERE t1.b/t1.c=t1.a+1/2
+GROUP BY t1.b,t1.c;
+a	b
+SELECT t1.a,t1.c
+FROM t1
+WHERE t1.a % t1.b=t1.c
+GROUP BY t1.a,t1.b;
+a	c
+1	1
+2	2
+SELECT t1.a,t1.b
+FROM t1
+WHERE t1.b+t1.c=t1.a+1/2
+GROUP BY t1.b,t1.c;
+ERROR HY000: test.t1.a is not functionally dependent on GROUP BY fields
+SELECT t1.a,t1.b
+FROM t1
+WHERE t1.b+2=t1.a+1/2
+GROUP BY t1.b;
+ERROR HY000: test.t1.a is not functionally dependent on GROUP BY fields
+SELECT t1.a,t1.b
+FROM t1
+WHERE t1.b % t1.c=t1.a+1/2
+GROUP BY t1.b,t1.c;
+ERROR HY000: test.t1.a is not functionally dependent on GROUP BY fields
+# BETWEEN
+SELECT t1.a BETWEEN 1 AND 3 AS bw_col,t1.a
+FROM t1
+GROUP BY t1.a;
+bw_col	a
+1	1
+1	2
+SELECT t1.b BETWEEN t1.c AND 3 AS bw_col,t1.b,t1.c
+FROM t1
+GROUP BY t1.b,t1.c;
+bw_col	b	c
+1	2	1
+1	3	0
+0	4	2
+SELECT t1.a,MAX(t2.y)
+FROM t1,t2
+WHERE t1.a=t2.x
+GROUP BY t2.x;
+a	MAX(t2.y)
+1	ddd
+2	aab
+SELECT t1.a,MAX(t1.b)
+FROM t1,t2
+WHERE t1.a=LENGTH(t2.y)
+GROUP BY t2.y;
+a	MAX(t1.b)
+2	4
+SELECT t1.a,MAX(t1.b)
+FROM t1,t2
+WHERE t1.a=LENGTH(t2.y)+1
+GROUP BY t2.y;
+a	MAX(t1.b)
+SELECT t1.a,MAX(t1.b)
+FROM t1,t2
+WHERE t1.a=(LENGTH(t2.y)+1)/2
+GROUP BY t2.y;
+ERROR HY000: test.t1.a is not functionally dependent on GROUP BY fields
+SELECT t1.a,MAX(t1.b)
+FROM t1,t2
+WHERE t1.a/2=(LENGTH(t2.y)+1)
+GROUP BY t2.y;
+ERROR HY000: test.t1.a is not functionally dependent on GROUP BY fields
+SELECT t1.a,MAX(t1.b)
+FROM t1,t2
+WHERE t1.a=LENGTH(t2.y)
+GROUP BY t2.x;
+ERROR HY000: test.t1.a is not functionally dependent on GROUP BY fields
+# Function in GROUP BY
+SELECT t1.a
+FROM t1
+GROUP BY t1.a/3;
+ERROR HY000: test.t1.a is not functionally dependent on GROUP BY fields
+# PK-key check
+CREATE TABLE t3(pk INT PRIMARY KEY, b INT, c INT, d INT);
+INSERT INTO t3 VALUES (1,2,1,1),(2,3,3,4),(3,4,2,2);
+SELECT t3.pk,t3.c,MAX(t3.b)
+FROM t3
+GROUP BY t3.pk;
+pk	c	MAX(t3.b)
+1	1	2
+2	3	3
+3	2	4
+SELECT t3.pk,t3.c,MAX(t3.b)
+FROM t3
+WHERE t3.c=t3.d
+GROUP BY t3.pk;
+pk	c	MAX(t3.b)
+1	1	2
+3	2	4
+SELECT t3.pk,t3.c,MAX(t3.b)
+FROM t3
+WHERE t3.pk=t3.d
+GROUP BY t3.d;
+pk	c	MAX(t3.b)
+1	1	2
+SELECT t3.pk,t1.a,MAX(t3.b)
+FROM t3,t1
+WHERE t3.c=t1.a
+GROUP BY t3.pk;
+pk	a	MAX(t3.b)
+1	1	2
+3	2	4
+SELECT t3.pk,t3.b,t1.a,MAX(t3.b)
+FROM t3,t1
+WHERE t3.pk=t1.a
+GROUP BY t1.a;
+pk	b	a	MAX(t3.b)
+1	2	1	2
+2	3	2	3
+SELECT t1.a,t3.pk,MAX(t1.b)
+FROM t1,t2,t3
+WHERE t1.a=LENGTH(t2.y) AND t1.a=t3.pk
+GROUP BY t3.pk;
+a	pk	MAX(t1.b)
+2	2	4
+SELECT t1.a,t3.pk,MAX(t1.b)
+FROM t1,t2,t3
+WHERE t1.a=LENGTH(t2.y) AND t1.a=t3.b
+GROUP BY t3.pk;
+a	pk	MAX(t1.b)
+2	1	4
+SELECT *
+FROM t3
+GROUP BY t3.pk;
+pk	b	c	d
+1	2	1	1
+2	3	3	4
+3	4	2	2
+SELECT t1.a,t3.pk,MAX(t1.b)
+FROM t1,t2,t3
+WHERE t1.a=LENGTH(t2.y) AND t1.a=t3.pk
+GROUP BY t3.b;
+ERROR HY000: test.t1.a is not functionally dependent on GROUP BY fields
+SELECT t3.pk,t1.a,MAX(t3.b)
+FROM t3,t1
+WHERE t3.c=t1.b
+GROUP BY t3.pk;
+ERROR HY000: test.t1.a is not functionally dependent on GROUP BY fields
+DROP TABLE t3;
+# Unique keys
+CREATE TABLE t3 (a INT, b INT, c CHAR(5), d INT, e INT,
+UNIQUE idx1 (a,b), UNIQUE idx2 (c));
+INSERT INTO t3 VALUES (1,2,'ccc',4,1), (2,2,'aaa',4,3), (2,3,'ex',1,5);
+SELECT t3.a,t3.b,t3.d
+FROM t3
+GROUP BY t3.a,t3.b;
+a	b	d
+1	2	4
+2	2	4
+2	3	1
+SELECT t3.a,t3.b,t3.d
+FROM t3
+GROUP BY t3.c;
+a	b	d
+2	2	4
+1	2	4
+2	3	1
+SELECT *
+FROM t3
+GROUP BY t3.c;
+a	b	c	d	e
+2	2	aaa	4	3
+1	2	ccc	4	1
+2	3	ex	1	5
+SELECT *
+FROM t3
+GROUP BY t3.a,t3.b;
+a	b	c	d	e
+1	2	ccc	4	1
+2	2	aaa	4	3
+2	3	ex	1	5
+SELECT t3.a,t3.b
+FROM t3
+GROUP BY t3.a;
+ERROR HY000: test.t3.b is not functionally dependent on GROUP BY fields
+SELECT t3.a,t3.b,t3.d
+FROM t3
+WHERE t3.a=t3.d
+GROUP BY t3.a;
+ERROR HY000: test.t3.b is not functionally dependent on GROUP BY fields
+SELECT *
+FROM t3
+GROUP BY t3.a;
+ERROR HY000: test.t3.b is not functionally dependent on GROUP BY fields
+DROP TABLE t3;
+# Virtual column
+CREATE TABLE t3 (a INT, b INT, c INT AS (a*b) VIRTUAL,
+d INT AS (b*b*2) VIRTUAL, e INT AS (1*2));
+INSERT INTO t3 VALUES (1,3,default,default,default),
+(2,2,default,default,default),
+(1,2,default,default,default);
+SELECT t3.a,t3.c
+FROM t3
+GROUP BY t3.a,t3.c;
+a	c
+1	2
+1	3
+2	4
+SELECT t3.a,t3.c
+FROM t3
+GROUP BY t3.a,t3.b;
+a	c
+1	2
+1	3
+2	4
+SELECT t3.a,t3.c,t3.d
+FROM t3
+GROUP BY t3.a,t3.b;
+a	c	d
+1	2	8
+1	3	18
+2	4	8
+SELECT t3.d
+FROM t3
+GROUP BY t3.b;
+d
+8
+18
+SELECT t3.e
+FROM t3
+GROUP BY t3.e;
+e
+2
+SELECT t3.e
+FROM t3
+GROUP BY t3.e+1;
+e
+2
+SELECT t3.c
+FROM t3
+GROUP BY t3.b;
+ERROR HY000: test.t3.c is not functionally dependent on GROUP BY fields
+SELECT t3.d
+FROM t3
+GROUP BY t3.d+1;
+ERROR HY000: test.t3.d is not functionally dependent on GROUP BY fields
+DROP TABLE t3;
+# IN func
+SELECT t2.x IN (3, 1) as in_col FROM t2 GROUP BY t2.x;
+in_col
+1
+0
+SELECT t2.y IN ('aa', t2.z) as in_col
+FROM t2 GROUP BY t2.y,t2.z;
+in_col
+1
+1
+0
+0
+SELECT t2.y IN ('aa', t2.z, t2.w) as in_col
+FROM t2 WHERE t2.z=t2.w+1 GROUP BY t2.y,t2.z;
+ERROR HY000: test.t2.w is not functionally dependent on GROUP BY fields
+SELECT t2.x IN (3, t2.y) as in_col
+FROM t2 GROUP BY t2.x,t2.y;
+ERROR HY000: in_col is not functionally dependent on GROUP BY fields
+SELECT t2.x IN ('aa', 1) as in_col FROM t2 GROUP BY t2.x;
+ERROR HY000: in_col is not functionally dependent on GROUP BY fields
+SELECT t2.y
+FROM t2
+WHERE 1 IN (2,3) = t2.y
+GROUP BY t2.x;
+ERROR HY000: test.t2.y is not functionally dependent on GROUP BY fields
+SELECT t2.y
+FROM t2
+WHERE 1 IN (t2.x,3) = t2.y
+GROUP BY t2.x;
+ERROR HY000: test.t2.y is not functionally dependent on GROUP BY fields
+# LIKE
+CREATE TABLE t3 (a INT, x BLOB, y BLOB, z char(3));
+INSERT INTO t3 VALUES (1,'aab', 'dds', 'asa'),
+(2,'aab', 'aab', 'dd'),
+(4,'cs ','dds', 'lkd');
+SELECT t3.x LIKE 'aab' like_col FROM t3 GROUP BY t3.x;
+like_col
+1
+0
+SELECT t3.x LIKE t3.y like_col FROM t3 GROUP BY t3.x,t3.y;
+like_col
+1
+0
+0
+SELECT t3.x LIKE 'aab' like_col
+FROM t3 WHERE t3.x=t3.y GROUP BY t3.y;
+like_col
+1
+SELECT t3.x FROM t3
+WHERE t3.x LIKE 'aab' = t3.y GROUP BY t3.y;
+ERROR HY000: test.t3.x is not functionally dependent on GROUP BY fields
+SELECT t3.x LIKE t3.y like_col FROM t3 GROUP BY t3.x;
+ERROR HY000: test.t3.y is not functionally dependent on GROUP BY fields
+DROP TABLE t3;
+# COERCIBILITY
+SELECT COERCIBILITY(t1.a+t1.b) FROM t1 GROUP BY t1.a;
+ERROR HY000: COERCIBILITY(t1.a+t1.b) is not functionally dependent on GROUP BY fields
+SELECT COERCIBILITY(t1.a) FROM t1 GROUP BY t1.a;
+ERROR HY000: COERCIBILITY(t1.a) is not functionally dependent on GROUP BY fields
+# AND,OR,NOT
+CREATE TABLE t3 (a INT, c BOOL, d BOOL, e BOOL);
+INSERT INTO t3 VALUES (1, true, false, false), (2, false, false, true),
+(3, false, false, false), (4, true, false, true);
+SELECT t3.c AND t3.d FROM t3 GROUP BY t3.c,t3.d;
+t3.c AND t3.d
+0
+0
+SELECT t3.c OR t3.d FROM t3 GROUP BY t3.c,t3.d;
+t3.c OR t3.d
+0
+1
+SELECT t3.c OR NOT t3.d FROM t3 GROUP BY t3.c,t3.d;
+t3.c OR NOT t3.d
+1
+1
+SELECT (t3.c OR NOT t3.d) AND t3.e FROM t3 GROUP BY t3.c,t3.d,t3.e;
+(t3.c OR NOT t3.d) AND t3.e
+0
+1
+0
+1
+SELECT t3.c OR NOT t3.d FROM t3 GROUP BY t3.c;
+ERROR HY000: test.t3.d is not functionally dependent on GROUP BY fields
+SELECT t3.c AND t3.d FROM t3 GROUP BY t3.c;
+ERROR HY000: test.t3.d is not functionally dependent on GROUP BY fields
+DROP TABLE t3;
+# user defined variable
+SET @a= 1;
+SELECT @a FROM t1 GROUP BY @a;
+@a
+1
+SELECT @a:=@a+t1.a FROM t1 GROUP BY t1.a;
+@a:=@a+t1.a
+2
+5
+SET @b= 1;
+SELECT @b:= CASE
+WHEN @a = t1.a THEN @b + 1
+ELSE 1
+END AS num,
+@a:= 1
+FROM t1
+GROUP BY t1.a;
+num	@a:= 1
+1	1
+1	1
+SELECT t1.a FROM t1 GROUP BY t1.a+@a;
+ERROR HY000: test.t1.a is not functionally dependent on GROUP BY fields
+SELECT t1.a FROM t1 GROUP BY @a;
+ERROR HY000: test.t1.a is not functionally dependent on GROUP BY fields
+#
+# CONTROL FLOW functions
+#
+# CASE
+SELECT CASE t2.y
+WHEN 'aa' THEN 'ddd'
+       ELSE 'aab' END AS case_col, t2.y, MAX(t2.x)
+FROM t2 GROUP BY t2.y;
+case_col	y	MAX(t2.x)
+ddd	aa	1
+aab	aab	2
+aab	ddd	1
+SELECT CASE t2.y
+WHEN 'aa' THEN 'ddd'
+       ELSE 'aab' END AS case_col
+FROM t2 GROUP BY case_col;
+case_col
+aab
+ddd
+SELECT CASE t2.y 
+WHEN 'aa' THEN 'ddd'
+       WHEN 'ddd' THEN 'aa'
+       ELSE 'aab' END AS case_col, t2.y, MAX(t2.x)
+FROM t2 GROUP BY t2.y;
+case_col	y	MAX(t2.x)
+ddd	aa	1
+aab	aab	2
+aa	ddd	1
+SELECT CASE t2.y 
+WHEN 'aa' THEN 'ddd'
+       WHEN 'ddd' THEN t2.z
+ELSE 'aab' END AS case_col, t2.y
+FROM t2 GROUP BY t2.y,t2.z;
+case_col	y
+ddd	aa
+aab	aab
+ddd 	ddd
+n 	ddd
+SELECT t2.y
+FROM t2
+WHERE CASE t2.y
+WHEN 'aa' THEN 'ddd'
+      ELSE 'aab' END = 'ddd'
+GROUP BY t2.y;
+y
+aa
+SELECT t2.y
+FROM t2
+WHERE CASE t2.y
+WHEN 'aa' THEN 'ddd'
+      ELSE 'aab' END = t2.z
+GROUP BY t2.y;
+y
+aab
+SELECT t2.y
+FROM t2
+WHERE CASE t2.y
+WHEN 'aa' THEN 'ddd'
+      ELSE 'aab' END = t2.z
+GROUP BY t2.z;
+y
+aab
+SELECT t2.y
+FROM t2
+WHERE CASE t2.y
+WHEN 'aa' THEN 1
+ELSE 'aab' END = t2.z
+GROUP BY t2.z;
+y
+aab
+SELECT CASE t2.y 
+WHEN 'aa' THEN 'ddd'
+       WHEN t2.x THEN 'aa'
+       ELSE 'aab' END AS case_col, t2.y
+FROM t2 GROUP BY t2.x,t2.y;
+ERROR HY000: test.t2.y is not functionally dependent on GROUP BY fields
+SELECT CASE t2.y 
+WHEN 'aa' THEN 'ddd'
+       WHEN t2.z THEN 'aa'
+       ELSE 'aab' END AS case_col, t2.y, MAX(t2.x)
+FROM t2 GROUP BY t2.y;
+ERROR HY000: test.t2.z is not functionally dependent on GROUP BY fields
+SELECT CASE t2.y 
+WHEN 'aa' THEN 'ddd'
+       WHEN 1 THEN 'aa'
+       ELSE 'aab' END AS case_col, t2.y, MAX(t2.x)
+FROM t2 GROUP BY y;
+ERROR HY000: test.t2.y is not functionally dependent on GROUP BY fields
+SELECT CASE t2.y 
+WHEN 'aa' THEN 'ddd'
+       WHEN 'ddd' THEN t2.x
+ELSE 'aab' END AS case_col, t2.y
+FROM t2 GROUP BY t2.x,t2.y;
+ERROR HY000: test.t2.x is not functionally dependent on GROUP BY fields
+SELECT CASE t2.y
+WHEN 'aa' THEN t2.z
+ELSE 'ddd' END AS case_col, t2.y, MAX(t2.x)
+FROM t2 GROUP BY t2.y;
+ERROR HY000: test.t2.z is not functionally dependent on GROUP BY fields
+SELECT CASE 'aa'
+       WHEN 'aa' THEN 'ddd'
+       WHEN 'ddd' THEN t2.z
+ELSE 'aab' END AS case_col, t2.y
+FROM t2 GROUP BY t2.x,t2.y;
+ERROR HY000: test.t2.z is not functionally dependent on GROUP BY fields
+# NULLIF
+SELECT NULLIF(t1.b,t1.c) as nif_col,t1.b,t1.c
+FROM t1
+GROUP BY t1.b,t1.c;
+nif_col	b	c
+2	2	1
+3	3	0
+4	4	2
+SELECT t1.a
+FROM t1
+WHERE t1.a BETWEEN 1 AND 3 = NULLIF(t1.b,t1.c)
+GROUP BY t1.b,t1.c;
+ERROR HY000: test.t1.a is not functionally dependent on GROUP BY fields
+SELECT t1.a
+FROM t1
+WHERE t1.a BETWEEN t1.b AND 3 = NULLIF(t1.b,t1.c)
+GROUP BY t1.b,t1.c;
+ERROR HY000: test.t1.a is not functionally dependent on GROUP BY fields
+SELECT t1.a
+FROM t1
+WHERE t1.b BETWEEN 1 AND 3 = NULLIF(t1.a,t1.c)
+GROUP BY t1.b,t1.c;
+ERROR HY000: test.t1.a is not functionally dependent on GROUP BY fields
+# IFNULL
+SELECT IFNULL(t1.b,t1.c),t1.b,t1.c
+FROM t1
+GROUP BY t1.b,t1.c;
+IFNULL(t1.b,t1.c)	b	c
+2	2	1
+3	3	0
+4	4	2
+SELECT t1.b,t1.c,t1.d
+FROM t1
+WHERE IFNULL(t1.c,t1.b) = t1.d
+GROUP BY t1.b,t1.c;
+b	c	d
+2	1	1
+4	2	2
+SELECT t1.b,t1.c,t1.d
+FROM t1
+WHERE IFNULL(t1.c,t1.d) = t1.b
+GROUP BY t1.b,t1.c;
+ERROR HY000: test.t1.d is not functionally dependent on GROUP BY fields
+# IF
+SELECT IF(t1.b>t1.c,t1.b,t1.c),t1.b,t1.c
+FROM t1
+GROUP BY t1.b,t1.c;
+IF(t1.b>t1.c,t1.b,t1.c)	b	c
+2	2	1
+3	3	0
+4	4	2
+SELECT IF(t1.a=t1.c,t1.b,t1.c),t1.a,t1.b,t1.c
+FROM t1
+WHERE t1.a=t1.b-2
+GROUP BY t1.b,t1.c;
+IF(t1.a=t1.c,t1.b,t1.c)	a	b	c
+0	1	3	0
+4	2	4	2
+#
+# STRING functions
+#
+# LENGTH
+SELECT t2.x,t2.y
+FROM t2
+WHERE t2.x=LENGTH(t2.y)
+GROUP BY t2.x;
+x	y
+SELECT t2.x,t2.y
+FROM t2
+WHERE t2.x=LENGTH(t2.y)+1
+GROUP BY t2.x;
+x	y
+SELECT t2.x,t2.y
+FROM t2
+WHERE t2.x/2=LENGTH(t2.y)+1/2
+GROUP BY t2.x;
+x	y
+SELECT t2.z,t2.y
+FROM t2
+WHERE t2.z+2=LENGTH(t2.y)+1/2
+GROUP BY t2.z;
+ERROR HY000: test.t2.y is not functionally dependent on GROUP BY fields
+SELECT t2.x,t2.y
+FROM t2
+WHERE t2.x=LENGTH(t2.y)+'aa'/2
+GROUP BY t2.x;
+ERROR HY000: test.t2.y is not functionally dependent on GROUP BY fields
+SELECT t2.x,t2.y
+FROM t2
+WHERE t2.x=LENGTH(t2.y)+'aa'
+GROUP BY t2.x;
+ERROR HY000: test.t2.y is not functionally dependent on GROUP BY fields
+SELECT t2.y,t2.z
+FROM t2
+WHERE t2.z=LENGTH(t2.y)
+GROUP BY t2.z;
+ERROR HY000: test.t2.y is not functionally dependent on GROUP BY fields
+SELECT t2.x,t2.y
+FROM t2
+WHERE t2.y=LENGTH(t2.x)
+GROUP BY t2.x;
+ERROR HY000: test.t2.y is not functionally dependent on GROUP BY fields
+SELECT t2.x,t2.y
+FROM t2
+WHERE t2.x=LENGTH('aaa')
+GROUP BY t2.x;
+ERROR HY000: test.t2.y is not functionally dependent on GROUP BY fields
+SELECT t2.x,t2.y
+FROM t2
+WHERE t2.y=LENGTH('aaa')
+GROUP BY t2.x;
+ERROR HY000: test.t2.y is not functionally dependent on GROUP BY fields
+# --echo # CONCAT
+SELECT t2.x,t2.y,t2.z
+FROM t2
+WHERE t2.x=LENGTH(CONCAT(t2.y,t2.z))
+GROUP BY t2.y,t2.z;
+x	y	z
+SELECT t2.y,t2.z
+FROM t2
+WHERE t2.y=CONCAT(t2.z,t2.w)
+GROUP BY t2.y;
+ERROR HY000: test.t2.z is not functionally dependent on GROUP BY fields
+SELECT t2.y,t2.z,t2.w
+FROM t2
+WHERE t2.y=CONCAT(t2.z,t2.w)
+GROUP BY t2.y,t2.z;
+ERROR HY000: test.t2.w is not functionally dependent on GROUP BY fields
+SELECT t2.x,t2.y
+FROM t2
+WHERE t2.x=LENGTH(CONCAT(t2.y,t2.z))
+GROUP BY t2.x;
+ERROR HY000: test.t2.y is not functionally dependent on GROUP BY fields
+# LEFT
+SELECT LEFT(t2.y,1)
+FROM t2
+GROUP BY t2.y;
+LEFT(t2.y,1)
+a
+a
+d
+SELECT LEFT(t2.y,t2.x)
+FROM t2
+GROUP BY t2.y,t2.x;
+LEFT(t2.y,t2.x)
+a
+aa
+d
+SELECT LEFT(t2.y,t2.z)
+FROM t2
+GROUP BY t2.y,t2.z;
+LEFT(t2.y,t2.z)
+
+
+
+
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: 'aab'
+Warning	1292	Truncated incorrect INTEGER value: 'b'
+Warning	1292	Truncated incorrect INTEGER value: 'n '
+Warning	1292	Truncated incorrect INTEGER value: 'ddd '
+SELECT t2.w
+FROM t2
+WHERE t2.w = LEFT(t2.y,1)
+GROUP BY t2.y;
+w
+d
+SELECT t2.w
+FROM t2
+WHERE t2.y = LEFT(t2.w,1)
+GROUP BY t2.y;
+w
+SELECT t2.w
+FROM t2
+WHERE t2.w = LEFT(t2.y,t2.x)
+GROUP BY t2.y,t2.x;
+w
+d
+SELECT LEFT(t2.y,t2.x)
+FROM t2
+GROUP BY t2.y;
+ERROR HY000: test.t2.x is not functionally dependent on GROUP BY fields
+SELECT t2.w
+FROM t2
+WHERE t2.y = LEFT(t2.w,t2.x)
+GROUP BY t2.y,t2.x;
+ERROR HY000: test.t2.w is not functionally dependent on GROUP BY fields
+# LEFT
+SELECT LEFT(t2.y,1)
+FROM t2
+GROUP BY t2.y;
+LEFT(t2.y,1)
+a
+a
+d
+SELECT t2.y,t2.x,LEFT(t2.y,t2.x-2)
+FROM t2
+GROUP BY t2.y,t2.x;
+y	x	LEFT(t2.y,t2.x-2)
+aa	1	
+aab	2	
+ddd	1	
+SELECT t2.y,t2.x,t2.z
+FROM t2
+WHERE LEFT(t2.y,t2.x-2) =  t2.z
+GROUP BY t2.y,t2.x;
+y	x	z
+# REPLACE
+SELECT t2.y,REPLACE(t2.y,'a','b')
+FROM t2
+GROUP BY t2.y;
+y	REPLACE(t2.y,'a','b')
+aa	bb
+aab	bbb
+ddd	ddd
+SELECT t2.y,REPLACE(t2.y,t2.w,'b')
+FROM t2
+GROUP BY t2.y,t2.w;
+y	REPLACE(t2.y,t2.w,'b')
+aa	aa
+aab	aab
+ddd	bbb
+ddd	ddd
+SELECT t2.w
+FROM t2
+WHERE t2.w = REPLACE(t2.y,t2.z,'b')
+GROUP BY t2.y,t2.z;
+w
+SELECT t2.y
+FROM t2
+WHERE t2.y = REPLACE('aaa','a',t2.w)
+GROUP BY t2.w;
+y
+ddd
+SELECT t2.y,REPLACE(t2.y,t2.w,'b')
+FROM t2
+GROUP BY t2.y;
+ERROR HY000: test.t2.w is not functionally dependent on GROUP BY fields
+SELECT t2.w
+FROM t2
+WHERE t2.y = REPLACE(t2.y,t2.w,'b')
+GROUP BY t2.y;
+ERROR HY000: test.t2.w is not functionally dependent on GROUP BY fields
+# SUBSTRING
+SELECT SUBSTRING(t2.y,1)
+FROM t2
+GROUP BY t2.y;
+SUBSTRING(t2.y,1)
+aa
+aab
+ddd
+SELECT t2.y
+FROM t2
+WHERE SUBSTRING(t2.y,3) = t2.w
+GROUP BY t2.w;
+y
+ddd
+SELECT t2.y
+FROM t2
+WHERE LENGTH(SUBSTRING(t2.y,3)) = t2.x
+GROUP BY t2.y;
+y
+ddd
+# TRIM
+CREATE TABLE t3 (a INT, b BLOB, c BLOB);
+INSERT INTO t3 VALUES (1,'aa  ',' aa '), (2,'  aa ','aa ');
+SELECT TRIM(t3.b)
+FROM t3
+GROUP BY t3.b;
+TRIM(t3.b)
+aa
+aa
+SELECT TRIM(LEADING FROM t3.b)
+FROM t3
+GROUP BY t3.b;
+TRIM(LEADING FROM t3.b)
+aa 
+aa  
+SELECT LTRIM(t3.b)
+FROM t3
+GROUP BY t3.b;
+LTRIM(t3.b)
+aa 
+aa  
+SELECT t3.b
+FROM t3
+WHERE TRIM(t3.b)=TRIM(t3.c)
+GROUP BY t3.c;
+b
+aa  
+  aa 
+SELECT t3.b
+FROM t3
+WHERE t3.c=LTRIM(t3.b)
+GROUP BY t3.c;
+b
+  aa 
+SELECT t3.a
+FROM t3
+WHERE t3.a=LENGTH(TRIM(t3.b))
+GROUP BY t3.b;
+a
+2
+SELECT t3.a
+FROM t3
+WHERE t3.a=TRIM(t3.b)
+GROUP BY t3.b;
+ERROR HY000: test.t3.a is not functionally dependent on GROUP BY fields
+DROP TABLE t3;
+# FIND_IN_SET
+SELECT FIND_IN_SET(t2.w,'.,b,d')
+FROM t2
+GROUP BY t2.w;
+FIND_IN_SET(t2.w,'.,b,d')
+1
+3
+0
+0
+SELECT FIND_IN_SET(t2.y,t2.z)
+FROM t2
+GROUP BY t2.y,t2.z;
+FIND_IN_SET(t2.y,t2.z)
+0
+1
+0
+0
+SELECT t2.y
+FROM t2
+WHERE t2.w BETWEEN 'a' AND 'e' = FIND_IN_SET(t2.z,t2.y)
+GROUP BY t2.z,t2.y;
+y
+aa
+ddd
+SELECT t2.y
+FROM t2
+WHERE t2.z BETWEEN 'a' AND 'e' = FIND_IN_SET(t2.z,t2.y)
+GROUP BY t2.z;
+ERROR HY000: test.t2.y is not functionally dependent on GROUP BY fields
+SELECT FIND_IN_SET(t2.y,t2.z)
+FROM t2
+GROUP BY t2.y;
+ERROR HY000: test.t2.z is not functionally dependent on GROUP BY fields
+# FORMAT
+CREATE TABLE t3(a INT, b DECIMAL, c DECIMAL);
+INSERT INTO t3 VALUES (1,13.12,13.122), (2,13.12,13.12);
+Warnings:
+Note	1265	Data truncated for column 'b' at row 1
+Note	1265	Data truncated for column 'c' at row 1
+Note	1265	Data truncated for column 'b' at row 2
+Note	1265	Data truncated for column 'c' at row 2
+SELECT FORMAT(t3.b,1)
+FROM t3
+GROUP BY t3.b;
+FORMAT(t3.b,1)
+13.0
+SELECT FORMAT(t3.b,t3.a)
+FROM t3
+GROUP BY t3.a,t3.b;
+FORMAT(t3.b,t3.a)
+13.0
+13.00
+SELECT t3.a,t3.b
+FROM t3
+WHERE t3.b = FORMAT(t3.c,t3.a)
+GROUP BY t3.a,t3.c;
+ERROR HY000: test.t3.b is not functionally dependent on GROUP BY fields
+SELECT t3.a,t3.b
+FROM t3
+WHERE t3.b = FORMAT(t3.a,t3.c)
+GROUP BY t3.a,t3.c;
+ERROR HY000: test.t3.b is not functionally dependent on GROUP BY fields
+# WEIGHT STRING
+SELECT HEX(WEIGHT_STRING(t2.y)) from t2 group by t2.y;
+ERROR HY000: WEIGHT_STRING(t2.y) is not functionally dependent on GROUP BY fields
+DROP TABLE t3;
+#
+# DATE functions
+#
+CREATE TABLE t3 (a INT, b DATE, c DATETIME, d TIME);
+INSERT INTO t3 VALUES (1, '2019-02-01', '2019-02-01 15:31:00', '00:01:00'),
+(2, '2019-02-01', '2019-02-01 15:00:00', '00:02:00'),
+(1, '2019-02-02', '2019-02-01 15:10:00', '00:01:00');
+# DATEDIFF
+SELECT DATEDIFF('2019-01-01',t3.b)
+FROM t3
+GROUP BY t3.b;
+DATEDIFF('2019-01-01',t3.b)
+-31
+-32
+SELECT DATEDIFF(t3.c,t3.b)
+FROM t3
+GROUP BY t3.b,t3.c;
+DATEDIFF(t3.c,t3.b)
+0
+0
+-1
+SELECT t3.a
+FROM t3
+WHERE DATEDIFF(t3.b,t3.c) = t3.a
+GROUP BY t3.b,t3.c;
+a
+1
+SELECT t3.a,t3.b,t3.c
+FROM t3
+WHERE DATEDIFF(t3.b,t3.c) = t3.a
+GROUP BY t3.a,t3.c;
+ERROR HY000: test.t3.b is not functionally dependent on GROUP BY fields
+# DAY
+SELECT DAY(t3.b)
+FROM t3
+GROUP BY t3.b;
+DAY(t3.b)
+1
+2
+SELECT t3.a
+FROM t3
+WHERE t3.a = DAY(t3.b)
+GROUP BY t3.b;
+a
+1
+SELECT t3.a
+FROM t3
+WHERE t3.a = DAY(t3.b) AND DAY(t3.b) = DAY(t3.c)
+GROUP BY t3.c;
+a
+1
+# DATE_ADD
+SELECT DATE_ADD(t3.b, INTERVAL 1 DAY)
+FROM t3
+GROUP BY t3.b;
+DATE_ADD(t3.b, INTERVAL 1 DAY)
+2019-02-02
+2019-02-03
+# new date type for DATE_ADD, equality has DATETIME type
+SELECT t3.c
+FROM t3
+WHERE t3.b = DATE_ADD(t3.c, INTERVAL 1 DAY)
+GROUP BY t3.b;
+ERROR HY000: test.t3.c is not functionally dependent on GROUP BY fields
+SELECT t3.c
+FROM t3
+WHERE t3.c = DATE_ADD(t3.b, INTERVAL 1 DAY)
+GROUP BY t3.b;
+ERROR HY000: test.t3.c is not functionally dependent on GROUP BY fields
+# DAYNAME
+SELECT DAYNAME(t3.b)
+FROM t3
+GROUP BY t3.b;
+DAYNAME(t3.b)
+Friday
+Saturday
+SELECT t3.c
+FROM t3
+WHERE DAYNAME(t3.b) = DAYNAME(t3.c)
+GROUP BY t3.b;
+c
+2019-02-01 15:31:00
+# EXTRACT
+SELECT EXTRACT(DAY FROM t3.b)
+FROM t3
+GROUP BY t3.b;
+EXTRACT(DAY FROM t3.b)
+1
+2
+SELECT t3.a
+FROM t3
+WHERE t3.a = EXTRACT(DAY FROM t3.b)+1
+GROUP BY t3.b;
+a
+2
+# TIMEDIFF
+SELECT TIMEDIFF(t3.c, '2019-02-01 15:30:00')
+FROM t3
+GROUP BY t3.c;
+TIMEDIFF(t3.c, '2019-02-01 15:30:00')
+-00:30:00
+-00:20:00
+00:01:00
+SELECT t3.d
+FROM t3
+WHERE t3.d = TIMEDIFF(t3.c, '2019-02-01 15:30:00')
+GROUP BY t3.c;
+d
+00:01:00
+DROP TABLE t3;
+# GREATEST and LEAST
+SELECT GREATEST(t1.a,t1.b,t1.c),t1.a,t1.b,t1.c
+FROM t1
+GROUP BY t1.a,t1.b,t1.c;
+GREATEST(t1.a,t1.b,t1.c)	a	b	c
+2	1	2	1
+3	1	3	0
+4	2	4	2
+SELECT LEAST(t1.a,t1.b),t1.a,t1.b
+FROM t1
+WHERE t1.a=t1.c AND t1.c=t1.b-1
+GROUP BY t1.a;
+LEAST(t1.a,t1.b)	a	b
+1	1	2
+# GEOMETRIC functions
+CREATE TABLE gt (a INT, g1 POINT, g2 LINESTRING);
+INSERT INTO gt VALUES
+(1, PointFromText('POINT(1 1)'), LineFromText('LINESTRING(0 0,0 1,1 1)')),
+(1, PointFromText('POINT(1 1)'), LineFromText('LINESTRING(1 2,2 1,1 1)'));
+SELECT ASTEXT(g1),ASTEXT(g2)
+FROM gt
+GROUP BY g1,g2;
+ASTEXT(g1)	ASTEXT(g2)
+POINT(1 1)	LINESTRING(0 0,0 1,1 1)
+POINT(1 1)	LINESTRING(1 2,2 1,1 1)
+SELECT MBREQUALS(gt1.g1,gt2.g1)
+FROM gt AS gt1, gt AS gt2
+GROUP BY gt1.g1,gt2.g1;
+MBREQUALS(gt1.g1,gt2.g1)
+1
+SELECT a,ASTEXT(g1),ASTEXT(g2)
+FROM gt
+WHERE CONTAINS(g2,g1) = a
+GROUP BY g1,g2;
+a	ASTEXT(g1)	ASTEXT(g2)
+1	POINT(1 1)	LINESTRING(0 0,0 1,1 1)
+1	POINT(1 1)	LINESTRING(1 2,2 1,1 1)
+DROP TABLE gt;
+#
+#
+# HAVING clause checking
+#
+#
+SELECT t1.a,t1.c,MAX(t1.b)
+FROM t1
+WHERE t1.a=t1.c
+GROUP BY t1.a
+HAVING t1.c > 1;
+a	c	MAX(t1.b)
+2	2	4
+SELECT t1.a,t1.c,MAX(t1.b)
+FROM t1
+WHERE t1.a=t1.c+1
+GROUP BY t1.a
+HAVING t1.c > 1;
+a	c	MAX(t1.b)
+SELECT t1.a,t1.c,t1.d
+FROM t1
+WHERE t1.a=t1.c AND t1.a=t1.d
+GROUP BY t1.a
+HAVING t1.c > 1 AND t1.d < 3;
+a	c	d
+2	2	2
+SELECT t1.a,t1.d
+FROM t1
+WHERE t1.a=t1.d
+GROUP BY t1.a
+HAVING MAX(t1.c) > 1 OR t1.d < 3;
+a	d
+1	1
+2	2
+SELECT t1.a,t1.c
+FROM t1
+WHERE t1.a=t1.c
+GROUP BY t1.a
+HAVING 1;
+a	c
+1	1
+2	2
+#
+#
+# DISTINCT
+#
+#
+SELECT DISTINCT t1.a
+FROM t1
+HAVING t1.a > 1;
+a
+2
+SELECT DISTINCT length(t2.y) as l,t2.y
+FROM t2
+HAVING l = 3;
+l	y
+3	aab
+3	ddd
+SELECT DISTINCT length(t2.y) as l
+FROM t2
+HAVING l = 1;
+ERROR HY000: test.t2.y is not functionally dependent on GROUP BY fields
+CREATE TABLE t3 (a VARCHAR(2), b VARCHAR(2));
+INSERT INTO t3 VALUES ('a ','a'), (' b', 'b ');
+SELECT t3.a,length(t3.a)
+FROM t3
+WHERE t3.a=t3.b
+GROUP BY t3.a;
+a	length(t3.a)
+a 	2
+DROP TABLE t3;
+DROP TABLE t1,t2;
+SET SQL_MODE=' ';

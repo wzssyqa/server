@@ -352,6 +352,19 @@ public:
     return Item_args::excl_dep_on_in_subq_left_part(subq_pred);
   }
 
+  bool excl_func_dep_on_grouping_fields(Item **item)
+  {
+    return Item_args::excl_func_dep_on_grouping_fields(item);
+  }
+
+  bool excl_func_dep_in_equalities(THD *thd, List<Context> *contexts,
+                                   const Context &ctx, Field **field_arg)
+  {
+    return Item_args::excl_func_dep_in_equalities(thd, contexts,
+                                                  Context_identity(),
+                                                  field_arg);
+  }
+
   /*
     We assume the result of any function that has a TIMESTAMP argument to be
     timezone-dependent, since a TIMESTAMP value in both numeric and string
@@ -1999,6 +2012,17 @@ public:
   bool const_item() const { return true; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_coercibility>(thd, this); }
+  bool excl_func_dep_on_grouping_fields(Item **item)
+  {
+    *item= this;
+    return false;
+  }
+  bool excl_func_dep_in_equalities(THD *thd, List<Context> *contexts,
+                                   const Context &ctx, Field **field_arg)
+  {
+    *field_arg= NULL;
+    return false;
+  }
 };
 
 

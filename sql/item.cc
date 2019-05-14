@@ -2101,6 +2101,8 @@ public:
       Item_ident::print(str, query_type);
   }
   virtual Ref_Type ref_type() { return AGGREGATE_REF; }
+  bool excl_func_dep_on_grouping_fields(Item **item)
+  { return true; }
 };
 
 
@@ -5224,19 +5226,6 @@ resolve_ref_in_select_and_group(THD *thd, Item_ident *ref, SELECT_LEX *select)
     }
   }
 
-  if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
-      select->having_fix_field  &&
-      select_ref != not_found_item && !group_by_ref &&
-      !ref->alias_name_used)
-  {
-    /*
-      Report the error if fields was found only in the SELECT item list and
-      the strict mode is enabled.
-    */
-    my_error(ER_NON_GROUPING_FIELD_USED, MYF(0),
-             ref->name.str, "HAVING");
-    return NULL;
-  }
   if (select_ref != not_found_item || group_by_ref)
   {
     if (select_ref != not_found_item && !ambiguous_fields)
@@ -6062,7 +6051,9 @@ Item *Item_field::propagate_equal_fields(THD *thd,
 {
   if (!(item_equal= find_item_equal(arg)))
     return this;
-  if (!field->can_be_substituted_to_equal_item(ctx, item_equal))
+  if (!field->can_be_substituted_to_equal_item(ctx,
+        Context(ANY_SUBST, item_equal->compare_type_handler(),
+                item_equal->compare_collation())))
   {
     item_equal= NULL;
     return this;
@@ -9070,6 +9061,27 @@ bool
 Item_field::excl_dep_on_grouping_fields(st_select_lex *sel)
 {
   return find_matching_field_pair(this, sel->grouping_tmp_fields) != NULL;
+}
+
+
+bool Item_field::excl_func_dep_in_equalities(THD *thd,
+                                             List<Context> *contexts,
+                                             const Context &ctx,
+                                             Field **field_arg)
+{
+  Item *item= NULL;
+  Context *new_ctx= new Context(ctx.subst_constraint(),
+                                ctx.compare_type_handler(),
+                                ctx.compare_collation());
+  if (contexts->push_back(new_ctx, thd->mem_root))
+  {
+    *field_arg= NULL;
+    return false;
+  }
+  *field_arg= field;
+  if (field->excl_func_dep_on_grouping_fields(&item))
+    return true;
+  return false;
 }
 
 

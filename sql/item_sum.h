@@ -587,6 +587,14 @@ public:
   virtual void setup_caches(THD *thd) {};
 
   bool with_sum_func() const { return true; }
+  bool excl_func_dep_on_grouping_fields(Item **item)
+  { return true; }
+  bool excl_func_dep_in_equalities(THD *thd, List<Context> *contexts,
+                                   const Context &ctx, Field **field_arg)
+  {
+    *field_arg= NULL;
+    return false;
+  }
 };
 
 

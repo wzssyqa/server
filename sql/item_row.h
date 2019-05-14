@@ -150,6 +150,19 @@ public:
     return Item_args::excl_dep_on_in_subq_left_part(subq_pred);
   }
 
+  bool excl_func_dep_on_grouping_fields(Item **item)
+  {
+    return Item_args::excl_func_dep_on_grouping_fields(item);
+  }
+
+  bool excl_func_dep_in_equalities(THD *thd, List<Context> *contexts,
+                                   const Context &ctx, Field **field_arg)
+  {
+    return Item_args::excl_func_dep_in_equalities(thd, contexts,
+                                                  Context_identity(),
+                                                  field_arg);
+  }
+
   bool check_vcol_func_processor(void *arg) {return FALSE; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_row>(thd, this); }

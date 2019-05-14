@@ -391,12 +391,12 @@ public:
     Subst_constraint subst_constraint() const { return m_subst_constraint; }
     const Type_handler *compare_type_handler() const
     {
-      DBUG_ASSERT(m_subst_constraint == ANY_SUBST);
+      //DBUG_ASSERT(m_subst_constraint == ANY_SUBST);
       return m_compare_handler;
     }
     CHARSET_INFO *compare_collation() const
     {
-      DBUG_ASSERT(m_subst_constraint == ANY_SUBST);
+      //DBUG_ASSERT(m_subst_constraint == ANY_SUBST);
       return m_compare_collation;
     }
   };
@@ -1632,7 +1632,7 @@ public:
   virtual bool test_if_equality_guarantees_uniqueness(const Item *const_item)
                                                       const;
   virtual bool can_be_substituted_to_equal_item(const Context &ctx,
-                                        const Item_equal *item);
+                                        const Context &eq_ctx);
   virtual Item *get_equal_const_item(THD *thd, const Context &ctx,
                                      Item *const_item)
   {
@@ -1680,6 +1680,7 @@ public:
     return NULL;
   }
   virtual bool sp_prepare_and_store_item(THD *thd, Item **value);
+  bool excl_func_dep_on_grouping_fields(Item **item);
 
   friend int cre_myisam(char * name, TABLE *form, uint options,
 			ulonglong auto_increment_value);
@@ -1835,7 +1836,7 @@ protected:
   uint field_repertoire;
 public:
   bool can_be_substituted_to_equal_item(const Context &ctx,
-                                        const Item_equal *item_equal);
+                                        const Context &eq_ctx);
   Field_str(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
 	    uchar null_bit_arg, utype unireg_check_arg,
 	    const LEX_CSTRING *field_name_arg,
@@ -3162,7 +3163,7 @@ public:
                     unireg_check_arg, field_name_arg), curdays(0)
     {}
   bool can_be_substituted_to_equal_item(const Context &ctx,
-                                        const Item_equal *item_equal);
+                                        const Context &eq_ctx);
   const Type_handler *type_handler() const { return &type_handler_time; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_INT24; }
   Copy_func *get_copy_func(const Field *from) const

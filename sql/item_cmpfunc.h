@@ -559,6 +559,14 @@ public:
     }
     return clone;
   }
+  bool excl_func_dep_in_equalities(THD *thd, List<Context> *contexts,
+                                   const Context &ctx, Field **field_arg)
+  {
+    Context new_ctx(ANY_SUBST, cmp.compare_type_handler(),
+                    compare_collation());
+    return Item_args::excl_func_dep_in_equalities(thd, contexts,
+                                                  new_ctx, field_arg);
+  }
 };
 
 /**
@@ -584,6 +592,12 @@ public:
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_xor>(thd, this); }
+  bool excl_func_dep_in_equalities(THD *thd, List<Context> *contexts,
+                                   const Context &ctx, Field **field_arg)
+  {
+    return Item_args::excl_func_dep_in_equalities(thd, contexts, Context_boolean(),
+                                                  field_arg);
+  }
 };
 
 class Item_func_not :public Item_bool_func
@@ -888,6 +902,12 @@ public:
   bool eq(const Item *item, bool binary_cmp) const;
   CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
   Item* propagate_equal_fields(THD *, const Context &, COND_EQUAL *) = 0;
+  bool excl_func_dep_in_equalities(THD *thd, List<Context> *contexts,
+                                   const Context &ctx, Field **field_arg)
+  {
+    *field_arg= NULL;
+    return false;
+  }
 };
 
 
@@ -943,6 +963,14 @@ public:
   longlong val_int_cmp_int();
   longlong val_int_cmp_real();
   longlong val_int_cmp_decimal();
+  bool excl_func_dep_in_equalities(THD *thd, List<Context> *contexts,
+                                   const Context &ctx, Field **field_arg)
+  {
+    Context new_ctx(ANY_SUBST, m_comparator.type_handler(),
+                    compare_collation());
+    return Item_args::excl_func_dep_in_equalities(thd, contexts,
+                                                  new_ctx, field_arg);
+  }
 };
 
 
@@ -1304,6 +1332,31 @@ public:
   { reset_first_arg_if_needed(); return this; }
   Item *in_subq_field_transformer_for_having(THD *thd, uchar *arg)
   { reset_first_arg_if_needed(); return this; }
+  bool excl_func_dep_in_equalities(THD *thd, List<Context> *contexts,
+                                   const Context &ctx, Field **field_arg)
+  {
+    bool dep= true;
+    bool dep_arg= true;
+    Context cmpctx(ANY_SUBST, cmp.compare_type_handler(),
+                              cmp.compare_collation());
+    for (uint i= 0; i < 2; i++)
+    {
+      dep_arg= args[i]->excl_func_dep_in_equalities(thd, contexts,
+                                                    cmpctx, field_arg);
+      if (!dep_arg)
+      {
+        if (!*field_arg)
+          return false;
+        dep= false;
+      }
+    }
+    dep_arg= args[2]->excl_func_dep_in_equalities(thd, contexts,
+                                                  Context_identity(),
+                                                  field_arg);
+    if (!dep_arg && !*field_arg)
+      return false;
+    return dep & dep_arg;
+  }
 };
 
 
@@ -2213,6 +2266,13 @@ public:
   Item *find_item();
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_case_searched>(thd, this); }
+  bool excl_func_dep_in_equalities(THD *thd, List<Context> *contexts,
+                                   const Context &ctx, Field **field_arg)
+  {
+    return Item_args::excl_func_dep_in_equalities(thd, contexts,
+                                                  Context_identity(),
+                                                  field_arg);
+  }
 };
 
 
@@ -2270,6 +2330,9 @@ public:
   } 
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_case_simple>(thd, this); }
+  bool excl_func_dep_on_grouping_fields(Item **item);
+  bool excl_func_dep_in_equalities(THD *thd, List<Context> *contexts,
+                                   const Context &ctx, Field **field_arg);
 };
 
 
@@ -2462,6 +2525,56 @@ public:
   bool to_be_transformed_into_in_subq(THD *thd);
   bool create_value_list_for_tvc(THD *thd, List< List<Item> > *values);
   Item *in_predicate_to_in_subs_transformer(THD *thd, uchar *arg);
+  bool excl_func_dep_on_grouping_fields(Item **item)
+  {
+    if (!arg_types_compatible)
+    {
+      *item= this;
+      return false;
+    }
+    if (!args[0]->excl_func_dep_on_grouping_fields(item))
+      return false;
+    for (uint i= 0; i < comparator_count(); i++)
+    {
+      uint idx= get_comparator_arg_index(i);
+      if (!args[idx]->excl_func_dep_on_grouping_fields(item))
+        return false;
+    }
+    return true;
+  }
+  bool excl_func_dep_in_equalities(THD *thd, List<Context> *contexts,
+                                   const Context &ctx, Field **field_arg)
+  {
+    bool dep= true;
+    bool dep_arg= true;
+    if (!arg_types_compatible)
+    {
+      *field_arg= NULL;
+      return false;
+    }
+    Context cmpctx(ANY_SUBST, m_comparator.type_handler(),
+                   Item_func_in::compare_collation());
+    dep_arg= args[0]->excl_func_dep_in_equalities(thd, contexts,
+                                                  cmpctx, field_arg);
+    if (!dep_arg && !*field_arg)
+      return false;
+    dep &= dep_arg;
+    for (uint i= 0; i < comparator_count(); i++)
+    {
+      Context cmpctx(ANY_SUBST, get_comparator_type_handler(i),
+                     Item_func_in::compare_collation());
+      uint idx= get_comparator_arg_index(i);
+      dep_arg= args[idx]->excl_func_dep_in_equalities(thd, contexts,
+                                                      cmpctx, field_arg);
+      if (!dep_arg)
+      {
+        if (!*field_arg)
+          return false;
+        dep= false;
+      }
+    }
+    return dep;
+  }
 };
 
 class cmp_item_row :public cmp_item
@@ -2782,6 +2895,31 @@ public:
   
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_like>(thd, this); }
+  bool excl_func_dep_on_grouping_fields(Item **item)
+  {
+    uint flags= Item_func_like::compare_collation()->state;
+    if (!((flags & MY_CS_NOPAD) && !(flags & MY_CS_NON1TO1)))
+    {
+      *item= this;
+      return false;
+    }
+    if (!Item_args::excl_func_dep_on_grouping_fields(item))
+      return false;
+    return true;
+  }
+  bool excl_func_dep_in_equalities(THD *thd, List<Context> *contexts,
+                                   const Context &ctx, Field **field_arg)
+  {
+    uint flags= Item_func_like::compare_collation()->state;
+    if (!((flags & MY_CS_NOPAD) && !(flags & MY_CS_NON1TO1)))
+    {
+      *field_arg= NULL;
+      return false;
+    }
+    Context new_ctx(ANY_SUBST, &type_handler_long_blob, compare_collation());
+    return Item_args::excl_func_dep_in_equalities(thd, contexts,
+                                                  new_ctx, field_arg);
+  }
 };
 
 
@@ -3012,6 +3150,13 @@ public:
   Item *build_clone(THD *thd);
   bool excl_dep_on_table(table_map tab_map);
   bool excl_dep_on_grouping_fields(st_select_lex *sel);
+  bool excl_func_dep_on_grouping_fields(Item **item);
+  bool excl_func_dep_in_equalities(THD *thd, List<Context> *contexts,
+                                   const Context &ctx, Field **field_arg)
+  {
+    *field_arg= NULL;
+    return false;
+  }
 };
 
 template <template<class> class LI, class T> class Item_equal_iterator;

@@ -1191,10 +1191,10 @@ bool Field::test_if_equality_guarantees_uniqueness(const Item *item) const
 */
 
 bool Field::can_be_substituted_to_equal_item(const Context &ctx,
-                                             const Item_equal *item_equal)
+                                             const Context &eq_ctx)
 {
-  DBUG_ASSERT(item_equal->compare_type_handler()->cmp_type() != STRING_RESULT);
-  DBUG_ASSERT(cmp_type() != STRING_RESULT);
+  //DBUG_ASSERT(eq_ctx.compare_type_handler()->cmp_type() != STRING_RESULT);
+  //DBUG_ASSERT(cmp_type() != STRING_RESULT);
   switch (ctx.subst_constraint()) {
   case ANY_SUBST:
     /*
@@ -1206,7 +1206,7 @@ bool Field::can_be_substituted_to_equal_item(const Context &ctx,
       Items don't know the context they are in and there are functions like
       IF (<hex_string>, 'yes', 'no').
     */
-    return ctx.compare_type_handler() == item_equal->compare_type_handler();
+    return ctx.compare_type_handler() == eq_ctx.compare_type_handler();
   case IDENTITY_SUBST:
     return true;
   }
@@ -2176,14 +2176,14 @@ bool Field_str::test_if_equality_guarantees_uniqueness(const Item *item) const
 
 
 bool Field_str::can_be_substituted_to_equal_item(const Context &ctx,
-                                                  const Item_equal *item_equal)
+                                                 const Context &eq_ctx)
 {
-  DBUG_ASSERT(item_equal->compare_type_handler()->cmp_type() == STRING_RESULT);
+  //DBUG_ASSERT(eq_ctx.compare_type_handler()->cmp_type() == STRING_RESULT);
   switch (ctx.subst_constraint()) {
   case ANY_SUBST:
-    return ctx.compare_type_handler() == item_equal->compare_type_handler() &&
+    return ctx.compare_type_handler() == eq_ctx.compare_type_handler() &&
           (ctx.compare_type_handler()->cmp_type() != STRING_RESULT ||
-           ctx.compare_collation() == item_equal->compare_collation());
+           ctx.compare_collation() == eq_ctx.compare_collation());
   case IDENTITY_SUBST:
     return ((charset()->state & MY_CS_BINSORT) &&
             (charset()->state & MY_CS_NOPAD));
@@ -6012,9 +6012,9 @@ int Field_time::store_decimal(const my_decimal *d)
 
 
 bool Field_time::can_be_substituted_to_equal_item(const Context &ctx,
-                                                  const Item_equal *item_equal)
+                                                  const Context &eq_ctx)
 {
-  DBUG_ASSERT(item_equal->compare_type_handler()->cmp_type() != STRING_RESULT);
+  //DBUG_ASSERT(eq_ctx.compare_type_handler()->cmp_type() != STRING_RESULT);
   switch (ctx.subst_constraint()) {
   case ANY_SUBST:
     /*
@@ -6034,9 +6034,9 @@ bool Field_time::can_be_substituted_to_equal_item(const Context &ctx,
         SELECT * FROM t1 WHERE a=TIME'00:00:00';
     */
     if (ctx.compare_type_handler() == &type_handler_datetime &&
-        item_equal->compare_type_handler() == &type_handler_time)
+        eq_ctx.compare_type_handler() == &type_handler_time)
       return true;
-    return ctx.compare_type_handler() == item_equal->compare_type_handler();
+    return ctx.compare_type_handler() == eq_ctx.compare_type_handler();
   case IDENTITY_SUBST:
     return true;
   }
@@ -11239,4 +11239,13 @@ bool Field::val_str_nopad(MEM_ROOT *mem_root, LEX_CSTRING *to)
     to->length= 0;
 
   return rc;
+}
+
+
+bool Field::excl_func_dep_on_grouping_fields(Item **item)
+{
+  if (vcol_info &&
+      vcol_info->expr->excl_func_dep_on_grouping_fields(item))
+    return true;
+  return bitmap_is_set(&table->tmp_set, field_index);
 }

@@ -1568,6 +1568,11 @@ public:
   void add_statistics(SELECT_LEX_UNIT *unit);
   bool make_unique_derived_name(THD *thd, LEX_CSTRING *alias);
   void lex_start(LEX *plex);
+  bool collect_determined_fields(List<TABLE_LIST> *join_list,
+                                 bool select_distinct);
+  bool is_select_list_determined(bool select_distinct);
+  bool check_func_dependencies(THD *thd, List<TABLE_LIST> *join_list,
+                               bool select_distinct,Item *conds, Item *having);
 };
 typedef class st_select_lex SELECT_LEX;
 
@@ -4798,6 +4803,7 @@ void sp_create_assignment_lex(THD *thd, bool no_lookahead);
 bool sp_create_assignment_instr(THD *thd, bool no_lookahead);
 
 void mark_or_conds_to_avoid_pushdown(Item *cond);
+
 
 #endif /* MYSQL_SERVER */
 #endif /* SQL_LEX_INCLUDED */

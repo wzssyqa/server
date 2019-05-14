@@ -1325,6 +1325,8 @@ public:
 
  Item *get_copy(THD *thd) { return 0; }
 
+ bool excl_func_dep_on_grouping_fields(Item **item)
+ { return true; }
 };
 
 #endif /* ITEM_WINDOWFUNC_INCLUDED */

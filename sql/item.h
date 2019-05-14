@@ -2005,6 +2005,37 @@ public:
     If there is some, sets a bit for this key in the proper key map.
   */
   virtual bool check_index_dependence(void *arg) { return 0; }
+  /*
+    TRUE if the expression is functionally dependent on determined
+    fields or is determined field or is constant.
+    Stores in item_arg non-determined field of this expression
+    if there is any.
+  */
+  virtual bool excl_func_dep_on_grouping_fields(Item **item)
+  {
+    if (const_item())
+      return true;
+    *item= this;
+    return false;
+  }
+  /*
+    TRUE if the expression is functionally dependent on determined
+    fields or is determined field or is constant in equality.
+    Stores in field_arg the last field that was met while
+    processing this expression.
+    Stores in contexts list Contexts of fields met while
+    processing this expression.
+    If this expression can't be used it returns FALSE and
+    field_arg is NULL.
+  */
+  virtual bool excl_func_dep_in_equalities(THD *thd, List<Context> *contexts,
+                                           const Context &ctx, Field **field_arg)
+  {
+    if (const_item())
+      return true;
+    *field_arg= NULL;
+    return false;
+  }
   /*============== End of Item processor list ======================*/
 
   virtual Item *get_copy(THD *thd)=0;
@@ -2531,6 +2562,32 @@ protected:
         return false;
     }
     return true;
+  }
+  bool excl_func_dep_on_grouping_fields(Item **item)
+  {
+    for (uint i= 0; i < arg_count; i++)
+    {
+      if (!args[i]->excl_func_dep_on_grouping_fields(item))
+        return false;
+    }
+    return true;
+  }
+  bool excl_func_dep_in_equalities(THD *thd,
+                                   List<Item::Context> *contexts,
+                                   const Item::Context &ctx,
+                                   Field **field_arg)
+  {
+    bool dep= true;
+    for (uint i= 0; i < arg_count; i++)
+    {
+      bool dep_arg=
+        args[i]->excl_func_dep_in_equalities(thd, contexts, ctx, field_arg);
+      if (!dep_arg && !*field_arg)
+        return false;
+      if (!dep_arg)
+        dep= false;
+    }
+    return dep;
   }
 public:
   Item_args(void)
@@ -3457,7 +3514,20 @@ public:
   { return field ? 0 : cleanup_processor(arg); }
   bool cleanup_excluding_const_fields_processor(void *arg)
   { return field && const_item() ? 0 : cleanup_processor(arg); }
-  
+  bool excl_func_dep_on_grouping_fields(Item **item)
+  {
+    if (!field->excl_func_dep_on_grouping_fields(item))
+    {
+      *item= (Item *)this;
+      return false;
+    }
+    return true;
+  }
+  bool excl_func_dep_in_equalities(THD *thd,
+                                   List<Context> *contexts,
+                                   const Context &ctx,
+                                   Field **field_arg);
+
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_field>(thd, this); }
   bool is_outer_field() const
@@ -5335,6 +5405,11 @@ public:
     *ref= (*ref)->remove_item_direct_ref();
     return this;
   }
+  bool excl_func_dep_on_grouping_fields(Item **item)
+  { return (*ref)->excl_func_dep_on_grouping_fields(item); }
+  bool excl_func_dep_in_equalities(THD *thd, List<Context> *contexts,
+                                   const Context &ctx, Field **field_arg)
+  { return (*ref)->excl_func_dep_in_equalities(thd, contexts, ctx, field_arg); }
 };
 
 
