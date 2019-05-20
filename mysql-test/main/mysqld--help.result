@@ -678,7 +678,8 @@ The following specify which files/extra groups are read (specified before remain
  join_cache_hashed, join_cache_bka, 
  optimize_join_buffer_size, table_elimination, 
  extended_keys, exists_to_in, orderby_uses_equalities, 
- condition_pushdown_for_derived, split_materialized
+ condition_pushdown_for_derived, split_materialized, 
+ null_rejecting_for_ranges
  --optimizer-use-condition-selectivity=# 
  Controls selectivity of which conditions the optimizer
  takes into account to calculate cardinality of a partial
