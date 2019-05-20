@@ -2053,3 +2053,108 @@ drop table t1;
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+--echo #
+--echo # MDEV-15777: Support Early NULLs filtering-like restrictions in the range optimizer
+--echo #
+
+set @save_optimizer_switch= @@optimizer_switch;
+set @@optimizer_switch='null_rejecting_for_ranges=on';
+create table ten(a int);
+insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table one_k(a int);
+insert into one_k select A.a + B.a* 10 + C.a * 100 from ten A, ten B, ten C;
+
+create table t1 (
+  id int(10) unsigned NOT NULL,
+  subset_id int(11) DEFAULT NULL,
+  PRIMARY KEY (id),
+  KEY t1_subset_id (subset_id));
+
+create table t2 (
+  id int(10) unsigned NOT NULL,
+  col int(10) unsigned NOT NULL,
+  key (id)
+);
+
+insert into t1 select a,a from one_k limit 5;
+insert into t1 select a+5,NULL from one_k limit 995;
+insert into t2 select a,a from one_k;
+
+let $query= SELECT * FROM t1,t2 WHERE t1.subset_id=t2.id;
+
+--echo # t1 should have range access and rows should be 4 not 1000
+eval explain $query;
+eval $query;
+
+let $query= SELECT * FROM t1
+            WHERE t1.subset_id IN (SELECT t2.id FROM t2);
+
+--echo with a subquery, that should return the same plan as above
+eval explain $query;
+eval $query;
+
+--echo Non-mergable subquery, t1 should have range access and rows should be 4 not 1000
+let $query= SELECT * FROM t1
+            WHERE t1.subset_id IN (SELECT max(t2.id) FROM t2 group by t2.col);
+eval explain $query;
+eval $query;
+
+create view v1 as SELECT t2.id FROM t2;
+create view v2 as SELECT t2.id FROM t2 group by t2.col;
+let $query= SELECT * FROM t1, v1 where t1.subset_id=v1.id;
+
+--echo with mergeable view, t1 should have range access and rows should be 4 not 1000
+eval explain $query;
+eval $query;
+
+let $query= SELECT * FROM t1, v2 where t1.subset_id=v2.id;
+--echo with non-mergeable view, t1 should have range access and rows should be 4 not 1000
+eval explain $query;
+eval $query;
+
+drop table t1,t2;
+drop view v1,v2;
+
+create table t1 (
+  id int(10) unsigned NOT NULL,
+  subset_id int(11) DEFAULT NULL,
+  KEY key1(id, subset_id),
+  KEY t1_subset_id (subset_id)
+);
+
+create table t2 (
+  id int(10) unsigned NOT NULL,
+  col int(10) unsigned NOT NULL,
+  key (id)
+);
+
+insert into t1 select 1,a from one_k limit 5;
+insert into t1 select 1,NULL from one_k limit 495;
+insert into t2 select a,a from one_k;
+
+--echo # range access on t1 with key t1_subset_id, rows 4 instead of 500
+let $query= SELECT * FROM t1,t2 WHERE t1.id>=1 and t1.subset_id=t2.id;
+eval explain $query;
+eval $query; 
+drop table t1,t2;
+
+create table t1 (id int unsigned,col int, KEY key1(id));
+create table t2 (id int unsigned,col int DEFAULT NULL,key (id));
+insert into t1 select a,2 from one_k limit 50;
+insert into t1 select NULL,2 from one_k limit 450;
+insert into t2 select a,a from one_k;
+insert into t2 select a,a from one_k;
+
+--echo # using key1 for range access on t1 and also USING index for sorting, no Filesort
+--echo # rows should be 75 not 500
+let $query= select * from t1,t2 where t1.id=t2.id and t1.col=2 order by t2.id limit 10;
+eval explain $query;
+eval $query;
+drop table ten,one_k, t1,t2;
+set @@optimizer_switch= @save_optimizer_switch;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
