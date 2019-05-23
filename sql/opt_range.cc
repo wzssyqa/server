@@ -2577,8 +2577,10 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     */
 
     if (null_rejecting_conds)
-      not_null_cond_tree= null_rejecting_conds->get_mm_tree(&param,
-                                                        &null_rejecting_conds);
+    {
+      not_null_cond_tree= null_rejecting_conds->
+                               get_mm_tree(&param, &null_rejecting_conds);
+    }
     if (not_null_cond_tree)
       remove_nonrange_trees(&param, not_null_cond_tree);
 
@@ -4485,31 +4487,25 @@ inline void add_cond(THD *thd, Item **e1, Item *e2)
 }
 
 /*
-  Create null rejecting conditions for a table, for all the equalites
-  present in the WHERE clause of a query.
+  Create null rejecting conditions for a table
 
   SYNOPSIS
     make_null_rejecting_conds()
-    @param TABLE        - Keys of this table will participate in null
+    @param tab          - Keys of the table belonging to this
+                          JOIN_TAB will participate in null
                           rejecting conditions
-    @param keyuse_array - array that has all the equalites of the
-                          WHERE clasuse
 
   DESCRIPTION
     This function creates null rejecting conditions for a table. These
-    conditions are created to do range analysis on them , the conditions
+    conditions are created to do range analysis, the conditions
     are of the form tbl.key.keypart IS NOT NULL.
 
   IMPLEMENTATION
-    Lookup in the keyuse array to check if it has equalites that belong
-    to the given table. If yes then find out if the conditions are null
-    rejecting and accordingly create all the condition for the keys of a
-    given table and AND them.
-
-
-  RETURN
-    NOT NULL - Found null rejecting conditions for the given table
-    NULL - No null rejecting conditions for the given table
+    Lookup in the keyuse array to check if it has equalities that belong
+    to the given table. If yes then find out if the equality is null
+    rejecting, if yes create a NOT NULL predicate for the given keypart.
+    Do this for all equalities in the keyuse array and AND all the NOT NULL
+    predicates.
 */
 
 void make_null_rejecting_conds(THD *thd, JOIN_TAB *tab)
@@ -4518,16 +4514,15 @@ void make_null_rejecting_conds(THD *thd, JOIN_TAB *tab)
   Item *cond= NULL;
   KEYUSE* keyuse;
   TABLE *table= tab->table;
-  key_map *const_keys= &tab->const_keys;
+
+  if (!optimizer_flag(thd, OPTIMIZER_SWITCH_NULL_REJECTING_FOR_RANGES))
+    return;
 
   /*
     No need to add NOT NULL condition for materialized derived tables
     or materialized subqueries as we do not run the range optimizer
     on their conditions
   */
-
-  if (!optimizer_flag(thd, OPTIMIZER_SWITCH_NULL_REJECTING_FOR_RANGES))
-    return;
 
   if (tab->table->is_filled_at_execution() ||
       (tab->table->pos_in_table_list->derived &&
@@ -4543,7 +4538,7 @@ void make_null_rejecting_conds(THD *thd, JOIN_TAB *tab)
   if (!table->s->keys || table->null_rejecting_conds || !tab->keyuse)
     return;
 
-  for(keyuse= tab->keyuse; keyuse->table == table; keyuse++)
+  for (keyuse= tab->keyuse; keyuse->table == table; keyuse++)
   {
     /*
       No null rejecting conds for a hash key or full-text keys
@@ -4553,18 +4548,16 @@ void make_null_rejecting_conds(THD *thd, JOIN_TAB *tab)
     keyinfo= keyuse->table->key_info + keyuse->key;
     Field *field= keyinfo->key_part[keyuse->keypart].field;
 
-    if (not_null_keypart_map.is_set(field->field_index))
-      continue;
-
     /*
-      No need to add null-rejecting condition if we have a
-      keyuse element as
+      No need to add null-rejecting condition if:
+        - NOT NULL predicates for the field is already added
         - table.key.keypart= const
         - (table.key.keypart= tbl.otherfield or table.key.keypart IS NULL)
         - table.key.keypart IS NOT NULLABLE
     */
 
-    if (keyuse->val->const_item() ||
+    if (not_null_keypart_map.is_set(field->field_index) ||
+        keyuse->val->const_item() ||
         !(keyuse->null_rejecting && field->maybe_null()) ||
         keyuse->optimize & KEY_OPTIMIZE_REF_OR_NULL)
       continue;
@@ -4577,8 +4570,8 @@ void make_null_rejecting_conds(THD *thd, JOIN_TAB *tab)
       as key.keypart IS NOT NULL
     */
 
-    const_keys->set_bit(keyuse->key);
-    not_null_item->fix_fields(thd, 0);
+    (&tab->const_keys)->set_bit(keyuse->key);
+    not_null_item->fix_fields(thd, &not_null_item);
     not_null_item->update_used_tables();
     add_cond(thd, &cond, not_null_item);
     not_null_keypart_map.set_bit(field->field_index);
