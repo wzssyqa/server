@@ -141,9 +141,8 @@ enum enum_json_opaque_type {
 // Prototypes
 size_t read_offset_or_size(const char *, bool);
 bool parse_array_or_object(Field_mysql_json::enum_type,
-                           const char *,size_t , bool,
-                           size_t *const, size_t *const);
+                           const char *,size_t , bool);
 bool parse_scalar();
-
-bool get_mysql_string(String*, size_t, const char*, size_t, bool, size_t,                             size_t, const char*, size_t);
+ bool check_value_type_and_append(String* buffer, size_t value_type_offset, const char *data, bool is_last, bool large, size_t depth);
+ 
 #endif  /* MYSQL_JSON_INCLUDED */ 
