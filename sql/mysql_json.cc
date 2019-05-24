@@ -38,7 +38,7 @@ static bool check_json_depth(size_t depth)
 }
 
 
-bool parse_array_or_object(Field_mysql_json::enum_type t, const char *data,                                size_t len, bool large)
+bool parse_array_or_object(String *buffer,Field_mysql_json::enum_type t, const char *data,                                size_t len, bool large)
 {
   //DBUG_ASSERT(t == Field_mysql_json::ARRAY || t == Field_mysql_json::OBJECT);
   /*
@@ -77,7 +77,6 @@ bool parse_array_or_object(Field_mysql_json::enum_type t, const char *data,     
   if (header_size > bytes)
     return true;                             /* purecov: inspected */
 
-   String *buffer= new String(); // this will go as parameter
 
   if (t==Field_mysql_json::enum_type::OBJECT)
   {
@@ -117,10 +116,11 @@ bool parse_array_or_object(Field_mysql_json::enum_type t, const char *data,     
       value_type_offset= 2*offset_size+ (large?KEY_ENTRY_SIZE_LARGE:KEY_ENTRY_SIZE_SMALL)*(element_count)+(large ? VALUE_ENTRY_SIZE_LARGE : VALUE_ENTRY_SIZE_SMALL)*value_counter;
       value_counter++;
 
-      check_mysql_value_type_and_append(buffer, value_type_offset, data, is_last, large, 0);
-      if(i!=(element_count-1))
+      if(i==(element_count-1))
         is_last=true;
 
+      check_mysql_value_type_and_append(buffer, value_type_offset, data, is_last, large, 0);
+      is_last=false;
     }
 
      if(buffer->append('}'))
@@ -139,19 +139,51 @@ bool parse_array_or_object(Field_mysql_json::enum_type t, const char *data,     
     return true;
 
   value_json_type= data[value_type_offset];
-  value_length_ptr= read_offset_or_size(data+value_type_offset+1, large);
-  value_length= (uint) data[value_length_ptr];
-
   switch(value_json_type)
   {
+    /** FINISHED WORKS **/
     case JSONB_TYPE_INT16 : 
     {
-      // value_length_ptr is a value of interest (negative should work, @todo)
-      buffer->append_longlong((longlong) (value_length_ptr));
+      buffer->append_longlong((longlong) (sint2korr(data+value_type_offset+1)));
       break;
     }
+
+    /*** NOT WORKING ****/
+    case JSONB_TYPE_INT32:
+    {
+      // In this case value_length_ptr is start of the value and has 4 bytes
+      //value_element= new char[4];
+      //value_length_ptr= read_offset_or_size(data+value_type_offset+1, large);
+      //memmove(value_element, const_cast<char*>(&data[value_length_ptr+1]),              4);
+      if( buffer->append_longlong(sint4korr(data+value_type_offset+1)))
+        return true;
+     // delete[] value_element;
+
+      if(!is_last)
+        buffer->append(",");
+      break;
+    }
+
+    /*** NOT WORKING ****/
+    case JSONB_TYPE_UINT64:
+    {
+      // In this case value_length_ptr is start of the value and has 8 bytes
+      //value_element= new char[8];
+      //value_length_ptr= read_offset_or_size(data+value_type_offset+1, large);
+      //memmove(value_element, const_cast<char*>(&data[value_length_ptr+1]),              8);
+      if( buffer->append_longlong(uint8korr(data+value_type_offset+1)))
+        return true;
+      //delete[] value_element;
+      if(!is_last)
+        buffer->append(",");
+      break;
+    }
+
+    /** FINISHED WORKS **/
     case JSONB_TYPE_STRING:
     {
+      value_length_ptr= read_offset_or_size(data+value_type_offset+1, large);
+      value_length= (uint) data[value_length_ptr];
       value_element= new char[value_length+1];
       memmove(value_element, const_cast<char*>(&data[value_length_ptr+1]),              value_length);
       value_element[value_length]= '\0';
