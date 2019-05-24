@@ -77,6 +77,7 @@ bool parse_array_or_object(Field_mysql_json::enum_type t, const char *data,     
   if (header_size > bytes)
     return true;                             /* purecov: inspected */
 
+   String *buffer= new String(); // this will go as parameter
 
   if (t==Field_mysql_json::enum_type::OBJECT)
   {
@@ -84,8 +85,6 @@ bool parse_array_or_object(Field_mysql_json::enum_type t, const char *data,     
     size_t value_type_offset, value_counter(0);
 
     bool is_last(false);
-    String *buffer= new String();
-    
     if(buffer->append('{'))
       return true;
     
@@ -105,14 +104,20 @@ bool parse_array_or_object(Field_mysql_json::enum_type t, const char *data,     
       //keys->append((const char*)key_element); // generating error
       //keys->append(STRING_WITH_LEN(key_element));
 
-      buffer->append(String((const char *)key_element, &my_charset_bin));
+      if(buffer->append('"'))
+        return true;
+      if( buffer->append(String((const char *)key_element, &my_charset_bin)) )
+        return true;
+      if(buffer->append('"'))
+        return true;
       delete[] key_element;
-
+      if(buffer->append(":"))
+        return true;
       // @anel calculate value type and get a value
       value_type_offset= 2*offset_size+ (large?KEY_ENTRY_SIZE_LARGE:KEY_ENTRY_SIZE_SMALL)*(element_count)+(large ? VALUE_ENTRY_SIZE_LARGE : VALUE_ENTRY_SIZE_SMALL)*value_counter;
-    // value_json_type= data[value_type_offset];
       value_counter++;
-      check_value_type_and_append(buffer, value_type_offset, data, is_last, large, 0);
+
+      check_mysql_value_type_and_append(buffer, value_type_offset, data, is_last, large, 0);
       if(i!=(element_count-1))
         is_last=true;
 
@@ -125,7 +130,7 @@ bool parse_array_or_object(Field_mysql_json::enum_type t, const char *data,     
   return 1;
 }
 
- bool check_value_type_and_append(String* buffer, size_t value_type_offset, const char *data, bool is_last, bool large, size_t depth)
+ bool check_mysql_value_type_and_append(String* buffer, size_t value_type_offset, const char *data, bool is_last, bool large, size_t depth)
 {
   size_t value_json_type, value_length, value_length_ptr;
   char *value_element;
@@ -134,18 +139,28 @@ bool parse_array_or_object(Field_mysql_json::enum_type t, const char *data,     
     return true;
 
   value_json_type= data[value_type_offset];
+  value_length_ptr= read_offset_or_size(data+value_type_offset+1, large);
+  value_length= (uint) data[value_length_ptr];
+
   switch(value_json_type)
   {
+    case JSONB_TYPE_INT16 : 
+    {
+      // value_length_ptr is a value of interest (negative should work, @todo)
+      buffer->append_longlong((longlong) (value_length_ptr));
+      break;
+    }
     case JSONB_TYPE_STRING:
     {
- 
-      value_length_ptr= read_offset_or_size(data+value_type_offset+1, large);
-      value_length= (uint) data[value_length_ptr];
       value_element= new char[value_length+1];
       memmove(value_element, const_cast<char*>(&data[value_length_ptr+1]),              value_length);
       value_element[value_length]= '\0';
-      buffer->append(":");
-      buffer->append(String((const char *)value_element, &my_charset_bin));
+      if(buffer->append('"'))
+        return true;
+      if( buffer->append(String((const char *)value_element, &my_charset_bin)) )
+        return true;
+      if(buffer->append('"'))
+        return true;
       delete[] value_element;
       if(!is_last)
         buffer->append(",");
