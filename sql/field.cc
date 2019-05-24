@@ -11213,15 +11213,13 @@ bool Field_mysql_json::parse_mysql(String *s, bool json_quoted,
   const char* data1=data+1;
   size_t len=length-1;
 
-  // Calculate number of bytes and elements
-  size_t element_count, bytes;
   bool large;
   switch (type)
   {
   case JSONB_TYPE_SMALL_OBJECT:
   {
     large=false;
-    parse_array_or_object(Field_mysql_json::enum_type::OBJECT, data1, len, large, &element_count, &bytes);
+    parse_array_or_object(Field_mysql_json::enum_type::OBJECT, data1, len, large);
     break;
   }
   case JSONB_TYPE_LARGE_OBJECT:
@@ -11233,10 +11231,7 @@ bool Field_mysql_json::parse_mysql(String *s, bool json_quoted,
   default:
     return false;//this->parse_scalar(type, data, len);
   }
-  // Clear the buffer
-  s->length(0);
-  if(!get_mysql_string(s, type, data1, len, large, element_count, bytes,                             func_name, 0))
-    return false;
+
   return true;
 }
 
