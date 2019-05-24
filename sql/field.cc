@@ -11175,6 +11175,8 @@ bool Field_mysql_json::parse_mysql(String *s, bool json_quoted,
   const char *data= s->ptr();
   size_t length= s->length();
 
+  // Empty the string
+  s->length(0);
   if (length == 0)
   {
     //@todo anel will need to see how to handle this
@@ -11200,7 +11202,7 @@ bool Field_mysql_json::parse_mysql(String *s, bool json_quoted,
   case JSONB_TYPE_SMALL_OBJECT:
   {
     large=false;
-    parse_array_or_object(Field_mysql_json::enum_type::OBJECT, data1, len, large);
+    parse_array_or_object(s, Field_mysql_json::enum_type::OBJECT, data1, len, large);
     break;
   }
   case JSONB_TYPE_LARGE_OBJECT:
@@ -11221,19 +11223,10 @@ bool Field_mysql_json::parse_mysql(String *s, bool json_quoted,
   ASSERT_COLUMN_MARKED_FOR_READ;
   String *buf1= Field_blob::val_str(buf1_tmp, buf2);
   bool parsed= this->parse_mysql(buf1, true, field_name.str);
-  if(parsed)
-    buf1->append("Too");
+   if(parsed)
+    buf1->append("\nFinshed");
   else
     buf1->length(0);
-  //buf1->set("",0,charset());	// A bit safer than buf1->length(0);
-  //buf1->length(0);
-  
-  /*
-  Json_wrapper wr;
-  if (is_null() || val_json(&wr) || wr.to_string(buf1, true, field_name.str))
-    buf1->length(0);
-  return buf1;
-  */
   return buf1;
 }
 
