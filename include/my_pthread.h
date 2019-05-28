@@ -73,6 +73,8 @@ struct timespec {
 #endif
 
 int win_pthread_mutex_trylock(pthread_mutex_t *mutex);
+int win_pthread_mutex_timedlock(pthread_mutex_t *mutex,
+			   const struct timespec *abstime);
 int pthread_create(pthread_t *, const pthread_attr_t *, pthread_handler, void *);
 int pthread_cond_init(pthread_cond_t *cond, const pthread_condattr_t *attr);
 int pthread_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex);
@@ -125,6 +127,7 @@ int pthread_cancel(pthread_t thread);
 #define pthread_mutex_init(A,B)  (InitializeCriticalSection(A),0)
 #define pthread_mutex_lock(A)	 (EnterCriticalSection(A),0)
 #define pthread_mutex_trylock(A) win_pthread_mutex_trylock((A))
+#define pthread_mutex_timedlock(A,B) win_pthread_mutex_timedlock((A),(B))
 #define pthread_mutex_unlock(A)  (LeaveCriticalSection(A), 0)
 #define pthread_mutex_destroy(A) (DeleteCriticalSection(A), 0)
 #define pthread_kill(A,B) pthread_dummy((A) ? 0 : ESRCH)
@@ -425,6 +428,8 @@ int safe_mutex_init(safe_mutex_t *mp, const pthread_mutexattr_t *attr,
                     const char *name, const char *file, uint line);
 int safe_mutex_lock(safe_mutex_t *mp, myf my_flags, const char *file,
                     uint line);
+int safe_mutex_timedlock(safe_mutex_t *mp, const struct timespec *abstime,
+                         myf my_flags, const char *file, uint line);
 int safe_mutex_unlock(safe_mutex_t *mp,const char *file, uint line);
 int safe_mutex_destroy(safe_mutex_t *mp,const char *file, uint line);
 int safe_cond_wait(pthread_cond_t *cond, safe_mutex_t *mp,const char *file,

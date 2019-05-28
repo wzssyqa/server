@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2017 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -124,6 +125,8 @@
 #define ER_SPIDER_CON_COUNT_ERROR_STR "Too many connections between spider and remote"
 #define ER_SPIDER_TABLE_OPEN_TIMEOUT_NUM 12714
 #define ER_SPIDER_TABLE_OPEN_TIMEOUT_STR "Table %s.%s open timeout"
+#define ER_SPIDER_INTERNAL_LOCK_WAIT_TIMEOUT_NUM 12719
+#define ER_SPIDER_INTERNAL_LOCK_WAIT_TIMEOUT_STR "Internal lock wait timeout when %s"
 #define ER_SPIDER_COND_SKIP_NUM 12801
 
 #define ER_SPIDER_UNKNOWN_NUM 12500
