@@ -353,9 +353,7 @@ based on the current size of the change buffer.
 @return a lower limit for the combined size in bytes of entries which
 will be merged from ibuf trees to the pages read, 0 if ibuf is
 empty */
-ulint
-ibuf_merge_in_background(
-	bool	full);
+ulint ibuf_merge_all();
 
 /** Contracts insert buffer trees by reading pages referring to space_id
 to the buffer pool.

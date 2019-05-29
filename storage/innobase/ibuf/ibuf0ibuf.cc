@@ -2568,9 +2568,7 @@ based on the current size of the change buffer.
 @return a lower limit for the combined size in bytes of entries which
 will be merged from ibuf trees to the pages read, 0 if ibuf is
 empty */
-ulint
-ibuf_merge_in_background(
-	bool	full)
+ulint ibuf_merge_all()
 {
 	ulint	sum_bytes	= 0;
 	ulint	sum_pages	= 0;
@@ -2583,26 +2581,8 @@ ibuf_merge_in_background(
 	}
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 
-	if (full) {
-		/* Caller has requested a full batch */
-		n_pages = PCT_IO(100);
-	} else {
-		/* By default we do a batch of 5% of the io_capacity */
-		n_pages = PCT_IO(5);
-
-		mutex_enter(&ibuf_mutex);
-
-		/* If the ibuf->size is more than half the max_size
-		then we make more agreesive contraction.
-		+1 is to avoid division by zero. */
-		if (ibuf->size > ibuf->max_size / 2) {
-			ulint diff = ibuf->size - ibuf->max_size / 2;
-			n_pages += PCT_IO((diff * 100)
-					   / (ibuf->max_size + 1));
-		}
-
-		mutex_exit(&ibuf_mutex);
-	}
+	/* Caller has requested a full batch */
+	n_pages = PCT_IO(100);
 
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
 	if (ibuf_debug) {

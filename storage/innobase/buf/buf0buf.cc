@@ -4327,24 +4327,8 @@ loop:
 				sure that no state change takes place. */
 				fix_block = block;
 
-				if (fsp_is_system_temporary(page_id.space())) {
-					/* For temporary tablespace,
-					the mutex is being used for
-					synchronization between user
-					thread and flush thread,
-					instead of block->lock. See
-					buf_flush_page() for the flush
-					thread counterpart. */
-
-					BPageMutex*	fix_mutex
-						= buf_page_get_mutex(
-							&fix_block->page);
-					mutex_enter(fix_mutex);
-					fix_block->fix();
-					mutex_exit(fix_mutex);
-				} else {
-					fix_block->fix();
-				}
+				ut_ad(!fsp_is_system_temporary(page_id.space()));
+				fix_block->fix();
 
 				/* Now safe to release page_hash mutex */
 				rw_lock_x_unlock(hash_lock);
