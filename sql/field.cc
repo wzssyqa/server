@@ -11197,25 +11197,12 @@ bool Field_mysql_json::parse_mysql(String *s, bool json_quoted,
   size_t len=length-1;
 
   bool large;
-  switch (type)
+  large= ((type == JSONB_TYPE_LARGE_OBJECT) || (type == JSONB_TYPE_LARGE_ARRAY));
+  if(get_mysql_string(s, type, data1, len, large))
   {
-  case JSONB_TYPE_SMALL_OBJECT:
-  {
-    large=false;
-    parse_array_or_object(s, Field_mysql_json::enum_type::OBJECT, data1, len, large);
-    break;
+    return true;
   }
-  case JSONB_TYPE_LARGE_OBJECT:
-    return false; //this->parse_array_or_object(Field_mysql_json::OBJECT, data1, len, true);
-  case JSONB_TYPE_SMALL_ARRAY:
-    return false; //this->parse_array_or_object(Field_mysql_json::ARRAY, data1, len, false);
-  case JSONB_TYPE_LARGE_ARRAY:
-    return false; //parse_array_or_object(Field_mysql_json::ARRAY, data1, len, true);
-  default:
-    return false;//this->parse_scalar(type, data, len);
-  }
-
-  return true;
+  return false;
 }
 
  String *Field_mysql_json::val_str(String *buf1_tmp, String *buf2 __attribute__((unused)))
@@ -11223,7 +11210,7 @@ bool Field_mysql_json::parse_mysql(String *s, bool json_quoted,
   ASSERT_COLUMN_MARKED_FOR_READ;
   String *buf1= Field_blob::val_str(buf1_tmp, buf2);
   bool parsed= this->parse_mysql(buf1, true, field_name.str);
-   if(parsed)
+   if(!parsed)
     buf1->append("\nFinshed");
   else
     buf1->length(0);

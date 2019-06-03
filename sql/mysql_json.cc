@@ -36,7 +36,26 @@ static bool check_json_depth(size_t depth)
   }
   return false;
 }
-
+bool get_mysql_string(String *buffer, size_t type, const char *data, size_t len,
+                      bool large)
+{
+  switch (type)
+  {
+  case JSONB_TYPE_SMALL_OBJECT:
+  {
+    large=false;
+    return parse_array_or_object(buffer, Field_mysql_json::enum_type::OBJECT, data, len, large);
+  }
+  case JSONB_TYPE_LARGE_OBJECT:
+    return false; //this->parse_array_or_object(Field_mysql_json::OBJECT, data1, len, true);
+  case JSONB_TYPE_SMALL_ARRAY:
+    return false; //this->parse_array_or_object(Field_mysql_json::ARRAY, data1, len, false);
+  case JSONB_TYPE_LARGE_ARRAY:
+    return false; //parse_array_or_object(Field_mysql_json::ARRAY, data1, len, true);
+  default:
+    return false;//this->parse_scalar(type, data, len);
+  }
+}
 
 bool parse_array_or_object(String *buffer,Field_mysql_json::enum_type t, const char *data,                                size_t len, bool large)
 {
@@ -127,7 +146,7 @@ bool parse_array_or_object(String *buffer,Field_mysql_json::enum_type t, const c
       return true;
   }
 
-  return 1;
+  return false;
 }
 
 bool check_mysql_value_type_and_append(String* buffer, size_t value_type_offset, const char *data, bool is_last, bool large, size_t depth)
