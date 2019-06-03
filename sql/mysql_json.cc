@@ -56,7 +56,8 @@ bool parse_value(String *buffer, size_t type, const char *data, size_t len)
   }
 }
 
-bool parse_array_or_object(String *buffer,Field_mysql_json::enum_type t, const char *data,                                size_t len, bool large)
+bool parse_array_or_object(String *buffer,Field_mysql_json::enum_type t,
+                           const char *data, size_t len, bool large)
 {
   DBUG_ASSERT((t == Field_mysql_json::enum_type::ARRAY) ||
               (t == Field_mysql_json::enum_type::OBJECT));
@@ -85,31 +86,28 @@ bool parse_array_or_object(String *buffer,Field_mysql_json::enum_type t, const c
       are stored
     - value entries with pointers to where the actual values are stored
   */
-  size_t header_size= 2 * offset_size;
-  if (t==Field_mysql_json::enum_type::OBJECT)
-    header_size+= element_count *
-      (large ? KEY_ENTRY_SIZE_LARGE : KEY_ENTRY_SIZE_SMALL);
-  header_size+= element_count *
-    (large ? VALUE_ENTRY_SIZE_LARGE : VALUE_ENTRY_SIZE_SMALL);
 
-  // The header should not be larger than the full size of the value.
-  if (header_size > bytes)
-    return true;                             /* purecov: inspected */
+  //size_t header_size= 2 * offset_size;
+  size_t key_json_offset, key_json_start, key_json_len;
+  size_t value_type_offset, value_counter(0);
+  char *key_element;
+  bool is_last(false);
 
-
-  if (t==Field_mysql_json::enum_type::OBJECT)
+  //size_t type, value_offset;
+  for(uint8 i=0; i<element_count; i++)
   {
-    size_t key_json_offset, key_json_start, key_json_len;
-    size_t value_type_offset, value_counter(0);
-
-    bool is_last(false);
-    if(buffer->append('{'))
-      return true;
-    
-    char *key_element;
-    for (uint i=0; i<element_count; i++)
+    if (t==Field_mysql_json::enum_type::OBJECT)
     {
-      
+      // header_size+= element_count *
+      // (large ? KEY_ENTRY_SIZE_LARGE : KEY_ENTRY_SIZE_SMALL);
+      if(i==0)
+      {
+        if(buffer->append('{'))
+        {
+          return true;
+        }
+      }
+
       key_json_offset= 2*offset_size+i*(large?KEY_ENTRY_SIZE_LARGE:KEY_ENTRY_SIZE_SMALL);
       key_json_start= read_offset_or_size(data+key_json_offset,large);
       key_json_len= read_offset_or_size(data+key_json_offset+offset_size, large);
@@ -118,50 +116,88 @@ bool parse_array_or_object(String *buffer,Field_mysql_json::enum_type t, const c
       memmove(key_element, const_cast<char*>(&data[key_json_start]),                    key_json_len);
       key_element[key_json_len]= '\0';
 
-      // @anel method: String::apppend(const char*) is not working 
-      //keys->append((const char*)key_element); // generating error
-      //keys->append(STRING_WITH_LEN(key_element));
-
       if(buffer->append('"'))
+      {
         return true;
+      }
       if( buffer->append(String((const char *)key_element, &my_charset_bin)) )
+      {
         return true;
+      }
       if(buffer->append('"'))
+      {
         return true;
+      }
       delete[] key_element;
       if(buffer->append(":"))
+      {
         return true;
-      // @anel calculate value type and get a value
+      }
+
       value_type_offset= 2*offset_size+ 
       (large?KEY_ENTRY_SIZE_LARGE:KEY_ENTRY_SIZE_SMALL)*(element_count)+
       (large ? VALUE_ENTRY_SIZE_LARGE : VALUE_ENTRY_SIZE_SMALL)*value_counter;
       value_counter++;
 
       if(i==(element_count-1))
+      {
         is_last=true;
+      }
 
-      if(parse_mysql_scalar(buffer, value_type_offset, data, is_last, large, 0))
+      if(parse_mysql_scalar(buffer, value_type_offset, data, large, 0))
       {
         return true;
       }
-      is_last=false;
-    }
 
-     if(buffer->append('}'))
-      return true;
-  }
-  else
-  {
-    // Parsing Field_mysql_json::enum_type::ARRAY
-    if(buffer->append("Array-!"))
-      return true;
-  }
+      if(!is_last)
+      {
+        buffer->append(",");
+      }
+
+      if(i==(element_count-1))
+      {
+        if(buffer->append('}'))
+        {
+          return true;
+        }
+      }
+
+    } // end object
+    else // t==Field_mysql::enum_type::Array
+    {
+      if(buffer->append('['))
+      {
+        return true;
+      }
+      // Parse array
+
+      if(buffer->append(']'))
+      {
+        return true;
+      }
+    } // end array
+    is_last=false;
+
+  } // end for
   
+
+  // {
+  //   // header_size+= i*(large ? VALUE_ENTRY_SIZE_LARGE : VALUE_ENTRY_SIZE_SMALL);
+  //   type= data[header_size];
+  //   // Non-inlined value -> we can check for inlined but is optional
+  //   value_offset= read_offset_or_size(data+header_size+1, large);
+  //   if(bytes < value_offset)
+  //   {
+  //     return true;
+  //   }
+  //   parse_value(buffer, type, data+value_offset, bytes-value_offset);
+  // }
 
   return false;
 }
 
-bool parse_mysql_scalar(String* buffer, size_t value_type_offset, const char *data, bool is_last, bool large, size_t depth)
+bool parse_mysql_scalar(String* buffer, size_t value_type_offset,
+                        const char *data, bool large, size_t depth)
 {
   size_t value_json_type;
 
@@ -256,13 +292,8 @@ bool parse_mysql_scalar(String* buffer, size_t value_type_offset, const char *da
       if(buffer->append('"'))
         return true;
       delete[] value_element;
+      break;
     }
   }
-
-  if(!is_last)
-  {
-    buffer->append(",");
-  }
-
   return false;
 } 

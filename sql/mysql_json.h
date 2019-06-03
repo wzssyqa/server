@@ -144,6 +144,7 @@ bool get_mysql_string(String *buffer, size_t type, const char *data, size_t len,
 bool parse_value(String *buffer, size_t type, const char *data, size_t len);
 bool parse_array_or_object(String * buffer, Field_mysql_json::enum_type,
                            const char *,size_t , bool);
-bool parse_mysql_scalar(String* buffer, size_t value_type_offset, const char *data, bool is_last, bool large, size_t depth);
+bool parse_mysql_scalar(String* buffer, size_t value_type_offset,
+                        const char *data, bool large, size_t depth);
 
 #endif  /* MYSQL_JSON_INCLUDED */ 
