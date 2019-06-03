@@ -11195,8 +11195,8 @@ bool Field_mysql_json::parse_mysql(String *s, bool json_quoted,
 
   const char* data1=data+1;
   size_t len=length-1;
-  
-  if(parse_mysql_value(s, type, data1, len))
+
+  if(parse_value(s, type, data1, len))
   {
     return true;
   }

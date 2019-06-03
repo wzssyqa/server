@@ -37,8 +37,7 @@ static bool check_json_depth(size_t depth)
   return false;
 }
 
-
-bool parse_mysql_value(String *buffer, size_t type, const char *data, size_t len)
+bool parse_value(String *buffer, size_t type, const char *data, size_t len)
 {
   switch (type)
   {
