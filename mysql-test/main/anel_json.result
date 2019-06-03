@@ -26,6 +26,6 @@ drop table mysql_json;
 #
 select * from test.mysql_json;
 t
-{"neg":470417432,"pos":8317990626162245660}
+{"neg":-1234567890,"pos":9876543210}
 Finshed
 drop table mysql_json;

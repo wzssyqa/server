@@ -130,10 +130,9 @@ bool parse_array_or_object(String *buffer,Field_mysql_json::enum_type t, const c
   return 1;
 }
 
- bool check_mysql_value_type_and_append(String* buffer, size_t value_type_offset, const char *data, bool is_last, bool large, size_t depth)
+bool check_mysql_value_type_and_append(String* buffer, size_t value_type_offset, const char *data, bool is_last, bool large, size_t depth)
 {
-  size_t value_json_type, value_length, value_length_ptr;
-  char *value_element;
+  size_t value_json_type;
 
   if (check_json_depth(++depth))
     return true;
@@ -142,46 +141,78 @@ bool parse_array_or_object(String *buffer,Field_mysql_json::enum_type t, const c
   switch(value_json_type)
   {
     /** FINISHED WORKS **/
-    case JSONB_TYPE_INT16 : 
+    case JSONB_TYPE_INT16 :
     {
       buffer->append_longlong((longlong) (sint2korr(data+value_type_offset+1)));
       break;
     }
 
-    /*** NOT WORKING ****/
+    /** FINISHED WORKS **/
     case JSONB_TYPE_INT32:
     {
-      // In this case value_length_ptr is start of the value and has 4 bytes
-      //value_element= new char[4];
-      //value_length_ptr= read_offset_or_size(data+value_type_offset+1, large);
-      //memmove(value_element, const_cast<char*>(&data[value_length_ptr+1]),              4);
-      if( buffer->append_longlong(sint4korr(data+value_type_offset+1)))
-        return true;
-     // delete[] value_element;
+      // depending on large -> can be inline or not-inline value @todo test
+      if(!large)
+      {
+        // In this case value_length_ptr is start of the value and has 4 bytes -> mysql is checking the length which is sent  and raise an error (bytes-value_length_pt)
+        size_t value_length_ptr;
+        char *value_element;
+        uint num_bytes=8;
+        value_element= new char[num_bytes+1];
+        value_length_ptr= read_offset_or_size(data+value_type_offset+1, large);
+        memmove(value_element, const_cast<char*>(&data[value_length_ptr]), num_bytes);
+        value_element[num_bytes+1]= '\0';
+        if( buffer->append_longlong(sint4korr(value_element)))
+          return true;
+        delete[] value_element;
+        break;
+      } 
+      else
+      {
+        if( buffer->append_longlong(sint4korr(data+value_type_offset+1)))
+          return true;
+      }
+      break;
+    }
 
-      if(!is_last)
-        buffer->append(",");
+    /** @todo Need to test ! **/
+    case JSONB_TYPE_UINT16 : 
+    {
+      buffer->append_longlong((longlong) (uint2korr(data+value_type_offset+1)));
       break;
     }
 
     /*** NOT WORKING ****/
     case JSONB_TYPE_UINT64:
     {
-      // In this case value_length_ptr is start of the value and has 8 bytes
-      //value_element= new char[8];
-      //value_length_ptr= read_offset_or_size(data+value_type_offset+1, large);
-      //memmove(value_element, const_cast<char*>(&data[value_length_ptr+1]),              8);
-      if( buffer->append_longlong(uint8korr(data+value_type_offset+1)))
-        return true;
-      //delete[] value_element;
-      if(!is_last)
-        buffer->append(",");
+      // depending on large -> can be inline or not-inline value @todo test
+      if(!large)
+      {
+        // In this case value_length_ptr is start of the value and has 8 bytes -> mysql is checking the length which is sent  and raise an error (bytes-value_length_pt)
+        size_t value_length_ptr;
+        char *value_element;
+        uint num_bytes=8;
+
+        value_element= new char[num_bytes+1];
+        value_length_ptr= read_offset_or_size(data+value_type_offset+1, large);
+        memmove(value_element, const_cast<char*>(&data[value_length_ptr]),num_bytes);
+        value_element[num_bytes+1]= '\0';
+        if( buffer->append_longlong(uint8korr(value_element)))
+          return true;
+        delete[] value_element;
+        break;
+      }
+      else
+      {
+        if( buffer->append_longlong(uint8korr(data+value_type_offset+1)))
+          return true;
+      }
       break;
     }
-
     /** FINISHED WORKS **/
     case JSONB_TYPE_STRING:
     {
+      size_t value_length, value_length_ptr;
+      char *value_element;
       value_length_ptr= read_offset_or_size(data+value_type_offset+1, large);
       value_length= (uint) data[value_length_ptr];
       value_element= new char[value_length+1];
@@ -194,10 +225,12 @@ bool parse_array_or_object(String *buffer,Field_mysql_json::enum_type t, const c
       if(buffer->append('"'))
         return true;
       delete[] value_element;
-      if(!is_last)
-        buffer->append(",");
-      break;
     }
+  }
+
+  if(!is_last)
+  {
+    buffer->append(",");
   }
 
   return false;
