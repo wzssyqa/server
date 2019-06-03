@@ -131,9 +131,7 @@ IF(WOLFSSL_INTELASM)
         ${WOLFCRYPT_SRCDIR}/aes_asm.S
         ${WOLFCRYPT_SRCDIR}/sha512_asm.S
         ${WOLFCRYPT_SRCDIR}/sha256_asm.S)
-    SET_SOURCE_FILES_PROPERTIES(
-        ${WOLFCRYPT_SOURCES}
-        PROPERTIES COMPILE_FLAGS "-maes -msse4 -mpclmul")
+    ADD_DEFINITIONS(-maes -msse4 -mpclmul)
   ENDIF()
 ENDIF()
 
