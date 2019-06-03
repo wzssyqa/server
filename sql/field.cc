@@ -11195,10 +11195,8 @@ bool Field_mysql_json::parse_mysql(String *s, bool json_quoted,
 
   const char* data1=data+1;
   size_t len=length-1;
-
-  bool large;
-  large= ((type == JSONB_TYPE_LARGE_OBJECT) || (type == JSONB_TYPE_LARGE_ARRAY));
-  if(get_mysql_string(s, type, data1, len, large))
+  
+  if(parse_mysql_value(s, type, data1, len))
   {
     return true;
   }

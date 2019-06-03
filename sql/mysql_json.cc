@@ -36,30 +36,31 @@ static bool check_json_depth(size_t depth)
   }
   return false;
 }
-bool get_mysql_string(String *buffer, size_t type, const char *data, size_t len,
-                      bool large)
+
+
+bool parse_mysql_value(String *buffer, size_t type, const char *data, size_t len)
 {
   switch (type)
   {
   case JSONB_TYPE_SMALL_OBJECT:
   {
-    large=false;
-    return parse_array_or_object(buffer, Field_mysql_json::enum_type::OBJECT, data, len, large);
+    return parse_array_or_object(buffer, Field_mysql_json::enum_type::OBJECT, data, len, false);
   }
   case JSONB_TYPE_LARGE_OBJECT:
-    return false; //this->parse_array_or_object(Field_mysql_json::OBJECT, data1, len, true);
+    return parse_array_or_object(buffer, Field_mysql_json::enum_type::OBJECT, data, len, true);
   case JSONB_TYPE_SMALL_ARRAY:
-    return false; //this->parse_array_or_object(Field_mysql_json::ARRAY, data1, len, false);
+    return parse_array_or_object(buffer, Field_mysql_json::enum_type::ARRAY, data, len, false);
   case JSONB_TYPE_LARGE_ARRAY:
-    return false; //parse_array_or_object(Field_mysql_json::ARRAY, data1, len, true);
+    return parse_array_or_object(buffer, Field_mysql_json::enum_type::ARRAY, data, len, true);
   default:
-    return false;//this->parse_scalar(type, data, len);
+    return false; //return parse_mysql_scalar(type, data, len); // ovo ne radi
   }
 }
 
 bool parse_array_or_object(String *buffer,Field_mysql_json::enum_type t, const char *data,                                size_t len, bool large)
 {
-  //DBUG_ASSERT(t == Field_mysql_json::ARRAY || t == Field_mysql_json::OBJECT);
+  DBUG_ASSERT((t == Field_mysql_json::enum_type::ARRAY) ||
+              (t == Field_mysql_json::enum_type::OBJECT));
   /*
     Make sure the document is long enough to contain the two length fields
     (both number of elements or members, and number of bytes).
@@ -132,24 +133,36 @@ bool parse_array_or_object(String *buffer,Field_mysql_json::enum_type t, const c
       if(buffer->append(":"))
         return true;
       // @anel calculate value type and get a value
-      value_type_offset= 2*offset_size+ (large?KEY_ENTRY_SIZE_LARGE:KEY_ENTRY_SIZE_SMALL)*(element_count)+(large ? VALUE_ENTRY_SIZE_LARGE : VALUE_ENTRY_SIZE_SMALL)*value_counter;
+      value_type_offset= 2*offset_size+ 
+      (large?KEY_ENTRY_SIZE_LARGE:KEY_ENTRY_SIZE_SMALL)*(element_count)+
+      (large ? VALUE_ENTRY_SIZE_LARGE : VALUE_ENTRY_SIZE_SMALL)*value_counter;
       value_counter++;
 
       if(i==(element_count-1))
         is_last=true;
 
-      check_mysql_value_type_and_append(buffer, value_type_offset, data, is_last, large, 0);
+      if(parse_mysql_scalar(buffer, value_type_offset, data, is_last, large, 0))
+      {
+        return true;
+      }
       is_last=false;
     }
 
      if(buffer->append('}'))
       return true;
   }
+  else
+  {
+    // Parsing Field_mysql_json::enum_type::ARRAY
+    if(buffer->append("Array-!"))
+      return true;
+  }
+  
 
   return false;
 }
 
-bool check_mysql_value_type_and_append(String* buffer, size_t value_type_offset, const char *data, bool is_last, bool large, size_t depth)
+bool parse_mysql_scalar(String* buffer, size_t value_type_offset, const char *data, bool is_last, bool large, size_t depth)
 {
   size_t value_json_type;
 
