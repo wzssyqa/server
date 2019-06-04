@@ -991,6 +991,9 @@ typedef struct st_position
   /* Cost info for the range filter used at this position */
   Range_rowid_filter_cost_info *range_rowid_filter_info;
 
+  /* Flag to be set to TRUE if the join prefix satisfies the ORDER BY CLAUSE */
+  bool ordering_achieved;
+
 } POSITION;
 
 typedef Bounds_checked_array<Item_null_result*> Item_null_array;
@@ -2098,6 +2101,9 @@ bool mysql_select(THD *thd,
 void free_underlaid_joins(THD *thd, SELECT_LEX *select);
 bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit,
                          select_result *result);
+void propagate_equal_field_for_orderby(JOIN *join, ORDER *first_order);
+bool check_join_prefix_contains_ordering(JOIN *join, JOIN_TAB *tab,
+                                         table_map previous_tables);
 
 /*
   General routine to change field->ptr of a NULL-terminated array of Field

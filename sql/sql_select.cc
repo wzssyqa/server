@@ -120,8 +120,11 @@ static bool best_extension_by_limited_search(JOIN *join,
                                              uint idx, double record_count,
                                              double read_time, uint depth,
                                              uint prune_level,
-                                             uint use_cond_selectivity);
+                                             uint use_cond_selectivity,
+                                             table_map previous_tables,
+                                             bool nest_created);
 void trace_plan_prefix(JOIN *join, uint idx, table_map remaining_tables);
+void trace_order_by_nest(JOIN *join, uint idx, table_map remaining_tables);
 static uint determine_search_depth(JOIN* join);
 C_MODE_START
 static int join_tab_cmp(const void *dummy, const void* ptr1, const void* ptr2);
@@ -5210,6 +5213,9 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   join->sort_by_table= get_sort_by_table(join->order, join->group_list,
                                          join->select_lex->leaf_tables,
                                          join->const_table_map);
+
+  (void)propagate_equal_field_for_orderby(join, join->order);
+
   /* 
     Update info on indexes that can be used for search lookups as
     reading const tables may has added new sargable predicates. 
@@ -7922,6 +7928,7 @@ best_access_path(JOIN      *join,
   pos->use_join_buffer= best_uses_jbuf;
   pos->spl_plan= spl_plan;
   pos->range_rowid_filter_info= best_filter;
+  pos->ordering_achieved= FALSE;
    
   loose_scan_opt.save_to_position(s, loose_scan_pos);
 
@@ -8440,6 +8447,7 @@ optimize_straight_join(JOIN *join, table_map join_tables)
       pushdown_cond_selectivity= table_cond_selectivity(join, idx, s,
                                                         join_tables);
     position->cond_selectivity= pushdown_cond_selectivity;
+    record_count= record_count*pushdown_cond_selectivity;
     ++idx;
   }
 
@@ -8565,9 +8573,11 @@ greedy_search(JOIN      *join,
   do {
     /* Find the extension of the current QEP with the lowest cost */
     join->best_read= DBL_MAX;
+    table_map previous_tables= 0;
     if (best_extension_by_limited_search(join, remaining_tables, idx, record_count,
                                          read_time, search_depth, prune_level,
-                                         use_cond_selectivity))
+                                         use_cond_selectivity,
+                                         previous_tables, FALSE))
       DBUG_RETURN(TRUE);
     /*
       'best_read < DBL_MAX' means that optimizer managed to find
@@ -9166,6 +9176,19 @@ void trace_plan_prefix(JOIN *join, uint idx, table_map remaining_tables)
   }
 }
 
+void trace_order_by_nest(JOIN *join, uint idx, table_map remaining_tables)
+{
+  THD *const thd= join->thd;
+  Json_writer_array plan_prefix(thd, "order_by_nest");
+  for (uint i= 0; i < idx; i++)
+  {
+    TABLE *tr= join->positions[i].table->table;
+    if (tr->map & remaining_tables)
+      plan_prefix.add_table_name(join->positions[i].table);
+  }
+
+}
+
 /**
   Find a good, possibly optimal, query execution plan (QEP) by a possibly
   exhaustive search.
@@ -9293,7 +9316,9 @@ best_extension_by_limited_search(JOIN      *join,
                                  double    read_time,
                                  uint      search_depth,
                                  uint      prune_level,
-                                 uint      use_cond_selectivity)
+                                 uint      use_cond_selectivity,
+                                 table_map previous_tables,
+                                 bool nest_created)
 {
   DBUG_ENTER("best_extension_by_limited_search");
 
@@ -9319,7 +9344,7 @@ best_extension_by_limited_search(JOIN      *join,
   JOIN_TAB *s;
   double best_record_count= DBL_MAX;
   double best_read_time=    DBL_MAX;
-  bool disable_jbuf= join->thd->variables.join_cache_level == 0;
+  bool disable_jbuf= (join->thd->variables.join_cache_level == 0) || nest_created;
 
   DBUG_EXECUTE("opt", print_plan(join, idx, record_count, read_time, read_time,
                                 "part_plan"););
@@ -9348,6 +9373,8 @@ best_extension_by_limited_search(JOIN      *join,
       {
         trace_plan_prefix(join, idx, remaining_tables);
         trace_one_table.add_table_name(s);
+        if (nest_created)
+          trace_order_by_nest(join, idx, previous_tables);
       }
 
       /* Find the best access method from 's' to the current partial plan */
@@ -9427,9 +9454,12 @@ best_extension_by_limited_search(JOIN      *join,
       double partial_join_cardinality= current_record_count *
                                         pushdown_cond_selectivity;
       if ( (search_depth > 1) && (remaining_tables & ~real_table_bit) & allowed_tables )
-      { /* Recursively expand the current partial plan */
+      {
+        /* Recursively expand the current partial plan */
         swap_variables(JOIN_TAB*, join->best_ref[idx], *pos);
         Json_writer_array trace_rest(thd, "rest_of_plan");
+        bool nest_allow= (join->cur_sj_inner_tables == 0 &&
+                          join->cur_embedding_map == 0);
         if (best_extension_by_limited_search(join,
                                              remaining_tables & ~real_table_bit,
                                              idx + 1,
@@ -9437,18 +9467,42 @@ best_extension_by_limited_search(JOIN      *join,
                                              current_read_time,
                                              search_depth - 1,
                                              prune_level,
-                                             use_cond_selectivity))
+                                             use_cond_selectivity,
+                                             nest_created ? previous_tables :
+                                             previous_tables | real_table_bit,
+                                             nest_created))
           DBUG_RETURN(TRUE);
+
+        if (!nest_created && !join->emb_sjm_nest && nest_allow &&
+            check_join_prefix_contains_ordering(join, s, previous_tables))
+        {
+          join->positions[idx].ordering_achieved= TRUE;
+          current_read_time= COST_ADD(current_read_time, current_record_count);
+          if (best_extension_by_limited_search(join,
+                                               remaining_tables & ~real_table_bit,
+                                               idx + 1,
+                                               partial_join_cardinality,
+                                               current_read_time,
+                                               search_depth - 1,
+                                               0,
+                                               use_cond_selectivity,
+                                               previous_tables | real_table_bit,
+                                               TRUE))
+            DBUG_RETURN(TRUE);
+          join->positions[idx].ordering_achieved= FALSE;
+        }
         swap_variables(JOIN_TAB*, join->best_ref[idx], *pos);
       }
       else
-      { /*
+      {
+        /*
           'join' is either the best partial QEP with 'search_depth' relations,
           or the best complete QEP so far, whichever is smaller.
         */
         if (join->sort_by_table &&
             join->sort_by_table !=
-            join->positions[join->const_tables].table->table)
+            join->positions[join->const_tables].table->table
+            && !nest_created)
           /*
              We may have to make a temp table, note that this is only a
              heuristic since we cannot know for sure at this point.
@@ -14040,6 +14094,73 @@ ORDER *simple_remove_const(ORDER *order, COND *where)
   return first;
 }
 
+
+/*
+  This function basically tries to propgate all the multiple equalites
+  for the Field items, so that one can use them to generate QEP that would
+  also take into consideration equality propagation
+*/
+void propagate_equal_field_for_orderby(JOIN *join, ORDER *first_order)
+{
+  ORDER *order;
+  table_map not_const_tables= ~join->const_table_map;
+  table_map item_eq_tables;
+  for (order= first_order; order; order= order->next)
+  {
+    table_map order_tables=order->item[0]->used_tables();
+    if (!(order_tables & not_const_tables))
+      continue;
+    else
+    {
+      if (optimizer_flag(join->thd, OPTIMIZER_SWITCH_ORDERBY_EQ_PROP) &&
+          order->item[0]->real_item()->type() == Item::FIELD_ITEM &&
+          join->cond_equal)
+      {
+        Item *item= order->item[0];
+        /*
+          TODO: equality substitution in the context of ORDER BY is
+          sometimes allowed when it is not allowed in the general case.
+          We make the below call for its side effect: it will locate the
+          multiple equality the item belongs to and set item->item_equal
+          accordingly.
+        */
+        (void)item->propagate_equal_fields(join->thd,
+                                           Value_source::
+                                           Context_identity(),
+                                           join->cond_equal);
+      }
+    }
+  }
+}
+
+/*
+  This function basicall checks if by considering the current join_tab
+  would we be able to achieve the ordering
+*/
+
+bool check_join_prefix_contains_ordering(JOIN *join, JOIN_TAB *tab,
+                                         table_map previous_tables)
+{
+  ORDER *order;
+  table_map not_const_tables= ~join->const_table_map;
+  table_map item_eq_tables;
+  for (order= join->order; order; order= order->next)
+  {
+    table_map order_tables=order->item[0]->used_tables();
+    if (!(order_tables & not_const_tables))
+      continue;
+    else
+    {
+      Item_equal *item_eq= order->item[0]->get_item_equal();
+      if (((previous_tables | tab->table->map) & order_tables) == order_tables ||
+          (item_eq && (item_eq->used_tables() & (previous_tables | tab->table->map))))
+        continue;
+      else
+        return FALSE;
+    }
+  }
+  return TRUE;
+}
 
 static int
 return_zero_rows(JOIN *join, select_result *result, List<TABLE_LIST> &tables,
