@@ -89,11 +89,10 @@ bool parse_array_or_object(String *buffer,Field_mysql_json::enum_type t,
 
   //size_t header_size= 2 * offset_size;
   size_t key_json_offset, key_json_start, key_json_len;
-  size_t value_type_offset, value_counter(0);
+  size_t type, value_type_offset, value_counter(0);
   char *key_element;
   bool is_last(false);
 
-  //size_t type, value_offset;
   for(uint8 i=0; i<element_count; i++)
   {
     if (t==Field_mysql_json::enum_type::OBJECT)
@@ -144,11 +143,29 @@ bool parse_array_or_object(String *buffer,Field_mysql_json::enum_type t,
         is_last=true;
       }
 
-      if(parse_mysql_scalar(buffer, value_type_offset, data, large, 0))
-      {
-        return true;
-      }
+      type= data[value_type_offset];
+      //parse_value(buffer, type, data, len); // should be called which is 
+      // calling  parse_mysql_scalar(buffer, type, data, large, 0)
 
+      // Inlined values
+      if (type == JSONB_TYPE_INT16 || type == JSONB_TYPE_UINT16 ||
+      type == JSONB_TYPE_LITERAL ||
+      (large && (type == JSONB_TYPE_INT32 || type == JSONB_TYPE_UINT32)))
+      {
+        if(parse_mysql_scalar(buffer, type, data + value_type_offset, large, 0))
+        {
+          return true;
+        }
+      }
+      else // Non-inlined values
+      {
+        size_t val_len_ptr=read_offset_or_size(data+value_type_offset+1, large);
+        if(parse_mysql_scalar(buffer, type, data+val_len_ptr, large, 0))
+        {
+          return true;
+        }
+
+      }
       if(!is_last)
       {
         buffer->append(",");
@@ -180,37 +197,22 @@ bool parse_array_or_object(String *buffer,Field_mysql_json::enum_type t,
 
   } // end for
   
-
-  // {
-  //   // header_size+= i*(large ? VALUE_ENTRY_SIZE_LARGE : VALUE_ENTRY_SIZE_SMALL);
-  //   type= data[header_size];
-  //   // Non-inlined value -> we can check for inlined but is optional
-  //   value_offset= read_offset_or_size(data+header_size+1, large);
-  //   if(bytes < value_offset)
-  //   {
-  //     return true;
-  //   }
-  //   parse_value(buffer, type, data+value_offset, bytes-value_offset);
-  // }
-
   return false;
 }
 
-bool parse_mysql_scalar(String* buffer, size_t value_type_offset,
+bool parse_mysql_scalar(String* buffer, size_t value_json_type,
                         const char *data, bool large, size_t depth)
 {
-  size_t value_json_type;
-
   if (check_json_depth(++depth))
     return true;
 
-  value_json_type= data[value_type_offset];
+
   switch(value_json_type)
   {
     /** FINISHED WORKS **/
     case JSONB_TYPE_INT16 :
     {
-      buffer->append_longlong((longlong) (sint2korr(data+value_type_offset+1)));
+      buffer->append_longlong((longlong) (sint2korr(data+1)));
       break;
     }
 
@@ -220,13 +222,10 @@ bool parse_mysql_scalar(String* buffer, size_t value_type_offset,
       // depending on large -> can be inline or not-inline value @todo test
       if(!large)
       {
-        // In this case value_length_ptr is start of the value and has 4 bytes -> mysql is checking the length which is sent  and raise an error (bytes-value_length_pt)
-        size_t value_length_ptr;
         char *value_element;
         uint num_bytes=8;
         value_element= new char[num_bytes+1];
-        value_length_ptr= read_offset_or_size(data+value_type_offset+1, large);
-        memmove(value_element, const_cast<char*>(&data[value_length_ptr]), num_bytes);
+        memmove(value_element, const_cast<char*>(&data[0]), num_bytes);
         value_element[num_bytes+1]= '\0';
         if( buffer->append_longlong(sint4korr(value_element)))
           return true;
@@ -235,7 +234,7 @@ bool parse_mysql_scalar(String* buffer, size_t value_type_offset,
       } 
       else
       {
-        if( buffer->append_longlong(sint4korr(data+value_type_offset+1)))
+        if( buffer->append_longlong(sint4korr(data+1)))
           return true;
       }
       break;
@@ -244,24 +243,21 @@ bool parse_mysql_scalar(String* buffer, size_t value_type_offset,
     /** @todo Need to test ! **/
     case JSONB_TYPE_UINT16 : 
     {
-      buffer->append_longlong((longlong) (uint2korr(data+value_type_offset+1)));
+      buffer->append_longlong((longlong) (uint2korr(data+1)));
       break;
     }
 
-    /*** NOT WORKING ****/
+    /*** FINISHED WORKS ****/
     case JSONB_TYPE_UINT64:
     {
       // depending on large -> can be inline or not-inline value @todo test
       if(!large)
       {
-        // In this case value_length_ptr is start of the value and has 8 bytes -> mysql is checking the length which is sent  and raise an error (bytes-value_length_pt)
-        size_t value_length_ptr;
         char *value_element;
         uint num_bytes=8;
 
         value_element= new char[num_bytes+1];
-        value_length_ptr= read_offset_or_size(data+value_type_offset+1, large);
-        memmove(value_element, const_cast<char*>(&data[value_length_ptr]),num_bytes);
+        memmove(value_element, const_cast<char*>(&data[0]),num_bytes);
         value_element[num_bytes+1]= '\0';
         if( buffer->append_longlong(uint8korr(value_element)))
           return true;
@@ -270,7 +266,7 @@ bool parse_mysql_scalar(String* buffer, size_t value_type_offset,
       }
       else
       {
-        if( buffer->append_longlong(uint8korr(data+value_type_offset+1)))
+        if( buffer->append_longlong(uint8korr(data+1)))
           return true;
       }
       break;
@@ -278,16 +274,16 @@ bool parse_mysql_scalar(String* buffer, size_t value_type_offset,
     /** FINISHED WORKS **/
     case JSONB_TYPE_STRING:
     {
-      size_t value_length, value_length_ptr;
+      size_t value_length;
       char *value_element;
-      value_length_ptr= read_offset_or_size(data+value_type_offset+1, large);
-      value_length= (uint) data[value_length_ptr];
+      value_length= (uint) data[0];
       value_element= new char[value_length+1];
-      memmove(value_element, const_cast<char*>(&data[value_length_ptr+1]),              value_length);
+      memmove(value_element, const_cast<char*>(&data[1]),
+              value_length);
       value_element[value_length]= '\0';
       if(buffer->append('"'))
         return true;
-      if( buffer->append(String((const char *)value_element, &my_charset_bin)) )
+      if( buffer->append(String((const char *)value_element, &my_charset_bin)))
         return true;
       if(buffer->append('"'))
         return true;

@@ -2,9 +2,19 @@ let $datadir=`select @@datadir`;
 drop table if exists mysql_json; 
 
 --echo #
---echo # Mix of INT32 and UINT64
+--echo # Negative value
 --echo #
 
+--copy_file std_data/negative_value_json.frm $datadir/test/mysql_json.frm
+--copy_file std_data/negative_value_json.MYI $datadir/test/mysql_json.MYI
+--copy_file std_data/negative_value_json.MYD $datadir/test/mysql_json.MYD
+
+select * from test.mysql_json;
+drop table mysql_json;
+
+--echo #
+--echo # Mix of INT32 and UINT64
+--echo #
 
 
 # Make sure you have placed `json.[frm/myd/myi]` files in `source/mysql-test/std_data/`
@@ -12,6 +22,5 @@ drop table if exists mysql_json;
 --copy_file std_data/simple_ints_table_json_object.MYI $datadir/test/mysql_json.MYI
 --copy_file std_data/simple_ints_table_json_object.MYD $datadir/test/mysql_json.MYD
 
-# Now can read 
 select * from test.mysql_json;
 drop table mysql_json;

@@ -1,0 +1,31 @@
+#
+# MDEV-18323: Convert MySQL JSON type to MariaDB TEXT in mysql_upgrade
+# Test integers
+#
+drop table if exists mysql_json;
+Warnings:
+Note	1051	Unknown table 'test.mysql_json'
+#
+# String value
+#
+select * from test.mysql_json;
+t
+{"key1":"val1","key2":"val2"}
+Finshed
+drop table mysql_json;
+#
+# Negative value
+#
+select * from test.mysql_json;
+t
+{"neg":-10}
+Finshed
+drop table mysql_json;
+#
+# Mix of INT32 and UINT64
+#
+select * from test.mysql_json;
+t
+{"neg":-1234567890,"pos":9876543210}
+Finshed
+drop table mysql_json;
