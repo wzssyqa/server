@@ -7142,3 +7142,5 @@ ER_NO_EIS_FOR_FIELD
 ER_WARN_AGGFUNC_DEPENDENCE
         eng "Aggregate function '%-.192s)' of SELECT #%d belongs to SELECT #%d"
         ukr "Агрегатна функція '%-.192s)' з SELECTу #%d належить до SELECTу #%d"
+ER_SET_STATEMENT_QUERY_REWRITE_FAILED 42000
+        eng "Extraction of <query> part from SET STATEMENT var1=value1 [, var2=value2, ...] FOR <query> failed for %.200s"
