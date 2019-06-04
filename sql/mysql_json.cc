@@ -37,7 +37,7 @@ static bool check_json_depth(size_t depth)
   return false;
 }
 
-bool parse_value(String *buffer, size_t type, const char *data, size_t len)
+bool parse_value(String *buffer, size_t type, const char *data, size_t len, bool large, size_t depth)
 {
   switch (type)
   {
@@ -52,7 +52,7 @@ bool parse_value(String *buffer, size_t type, const char *data, size_t len)
   case JSONB_TYPE_LARGE_ARRAY:
     return parse_array_or_object(buffer, Field_mysql_json::enum_type::ARRAY, data, len, true);
   default:
-    return false; //return parse_mysql_scalar(type, data, len); // ovo ne radi
+    return parse_mysql_scalar(buffer, type, data, large, depth); // ovo ne radi
   }
 }
 
@@ -112,7 +112,7 @@ bool parse_array_or_object(String *buffer,Field_mysql_json::enum_type t,
       key_json_len= read_offset_or_size(data+key_json_offset+offset_size, large);
       
       key_element= new char[key_json_len+1];
-      memmove(key_element, const_cast<char*>(&data[key_json_start]),                    key_json_len);
+      memmove(key_element, const_cast<char*>(&data[key_json_start]), key_json_len);
       key_element[key_json_len]= '\0';
 
       if(buffer->append('"'))
@@ -160,7 +160,8 @@ bool parse_array_or_object(String *buffer,Field_mysql_json::enum_type t,
       else // Non-inlined values
       {
         size_t val_len_ptr=read_offset_or_size(data+value_type_offset+1, large);
-        if(parse_mysql_scalar(buffer, type, data+val_len_ptr, large, 0))
+        //if(parse_mysql_scalar(buffer, type, data+val_len_ptr, large, 0))
+        if(parse_value(buffer, type, data+val_len_ptr, bytes-val_len_ptr, large, 0))
         {
           return true;
         }
@@ -180,17 +181,63 @@ bool parse_array_or_object(String *buffer,Field_mysql_json::enum_type t,
       }
 
     } // end object
+
     else // t==Field_mysql::enum_type::Array
     {
-      if(buffer->append('['))
+      if(i==0)
       {
-        return true;
+        if(buffer->append('['))
+        {
+          return true;
+        }
       }
-      // Parse array
 
-      if(buffer->append(']'))
+      // Parse array
+      value_type_offset= 2*offset_size+
+      (large ? VALUE_ENTRY_SIZE_LARGE : VALUE_ENTRY_SIZE_SMALL)*value_counter;
+      value_counter++;
+
+      if(i==(element_count-1))
       {
-        return true;
+        is_last=true;
+      }
+
+      type= data[value_type_offset];
+      //parse_value(buffer, type, data, len); // should be called which is 
+      // calling  parse_mysql_scalar(buffer, type, data, large, 0)
+
+      // Inlined values
+      if (type == JSONB_TYPE_INT16 || type == JSONB_TYPE_UINT16 ||
+      type == JSONB_TYPE_LITERAL ||
+      (large && (type == JSONB_TYPE_INT32 || type == JSONB_TYPE_UINT32)))
+      {
+        if(parse_mysql_scalar(buffer, type, data + value_type_offset, large, 0))
+        {
+          return true;
+        }
+      }
+      else // Non-inlined values
+      {
+        size_t val_len_ptr=read_offset_or_size(data+value_type_offset+1, large);
+        //if(parse_mysql_scalar(buffer, type, data+val_len_ptr, large, 0))
+        if(parse_value(buffer, type, data+val_len_ptr, bytes-val_len_ptr, large, 0))
+        {
+          return true;
+        }
+
+      }
+
+      if(!is_last)
+      {
+        buffer->append(",");
+      }
+
+      if(i==(element_count-1))
+      {
+        if(buffer->append(']'))
+        {
+          return true;
+        }
       }
     } // end array
     is_last=false;
