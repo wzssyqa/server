@@ -2596,3 +2596,14 @@ trx_undo_read_v_cols(
 
 	ut_ad(ptr == end_ptr);
 }
+
+/** Get the table id from the undo log record.
+@return table id stored as a part of undo log record */
+table_id_t
+trx_undo_rec_get_table_id(trx_undo_rec_t* undo_rec)
+{
+	const byte*	ptr = undo_rec + 3;
+	/* Skip the UNDO number */
+	mach_read_next_much_compressed(&ptr);
+	return mach_read_next_much_compressed(&ptr);
+}

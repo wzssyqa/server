@@ -222,6 +222,8 @@ public:
 		fil_space_t*	last;
 	} truncate;
 
+	/* Used for reading the undo log records. */
+	mem_heap_t*	heap;
   /**
     Constructor.
 

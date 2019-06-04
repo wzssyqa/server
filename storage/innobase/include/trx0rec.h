@@ -302,6 +302,12 @@ trx_undo_read_v_idx(
 	bool*			is_undo_log,
 	ulint*			field_no);
 
+/** Get the table id from the undo log record.
+@return table id stored as a part of undo log record */
+table_id_t
+trx_undo_rec_get_table_id(
+	trx_undo_rec_t*	undo_rec);
+
 /* Types of an undo log record: these have to be smaller than 16, as the
 compilation info multiplied by 16 is ORed to this value in an undo log
 record */
