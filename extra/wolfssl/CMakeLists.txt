@@ -107,9 +107,17 @@ ${WOLFCRYPT_SRCDIR}/hash.c
 ${WOLFCRYPT_SRCDIR}/wolfmath.c
 )
 
+# Use fastmath large number math library.
+IF(NOT (MSVC AND CMAKE_C_COMPILER_ID MATCHES Clang))
+  SET(WOLFSSL_FASTMATH 1)
+ENDIF()
+
 IF(WOLFSSL_FASTMATH)
- # Currently not used, ssl_8k_key test fails with it
  ADD_DEFINITIONS(-DUSE_FAST_MATH)
+
+ # FP_MAX_BITS is set high solely to satisfy ssl_8k_key.test
+ # WolfSSL will use more stack space with it
+ ADD_DEFINITIONS(-DFP_MAX_BITS=16384)
  SET(WOLFCRYPT_SOURCES  ${WOLFCRYPT_SOURCES} ${WOLFCRYPT_SRCDIR}/tfm.c)
 ELSE()
  SET(WOLFCRYPT_SOURCES  ${WOLFCRYPT_SOURCES} ${WOLFCRYPT_SRCDIR}/integer.c)
