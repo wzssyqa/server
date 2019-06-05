@@ -1,0 +1,15 @@
+--echo #
+--echo # Test literals
+--echo #
+
+let $datadir=`select @@datadir`;
+drop table if exists mysql_json; 
+
+--copy_file std_data/literals.frm $datadir/test/mysql_json.frm
+--copy_file std_data/literals.MYI $datadir/test/mysql_json.MYI
+--copy_file std_data/literals.MYD $datadir/test/mysql_json.MYD
+
+# Now can read 
+select * from test.mysql_json;
+
+drop table mysql_json;

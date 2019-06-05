@@ -1,0 +1,11 @@
+drop table if exists mysql_json;
+Warnings:
+Note	1051	Unknown table 'test.mysql_json'
+#
+# Array test
+#
+select * from test.mysql_json;
+t
+{"a":[1,2],"b":["x","y"]}
+Finshed
+drop table mysql_json;

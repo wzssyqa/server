@@ -256,6 +256,40 @@ bool parse_mysql_scalar(String* buffer, size_t value_json_type,
 
   switch(value_json_type)
   {
+    case JSONB_TYPE_LITERAL:
+    {
+      switch (static_cast<uint8>(*data))
+      {
+        case JSONB_NULL_LITERAL:
+        {
+          if(buffer->append("null"))
+          {
+            return true; 
+          }
+          break;
+        }
+        case JSONB_TRUE_LITERAL:
+        {
+          if(buffer->append("true"))
+          {
+            return true; 
+          }
+          break;
+        }
+        case JSONB_FALSE_LITERAL:
+        {
+          if(buffer->append("false"))
+          {
+            return true; 
+          }
+          break;
+        }
+        default:
+          return true;
+        
+      }
+      break;
+    }
     /** FINISHED WORKS **/
     case JSONB_TYPE_INT16 :
     {
