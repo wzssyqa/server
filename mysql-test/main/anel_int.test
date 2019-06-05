@@ -2,18 +2,42 @@ let $datadir=`select @@datadir`;
 drop table if exists mysql_json; 
 
 --echo #
---echo # Negative value
+--echo # uint64 - worked
+--echo #
+
+--copy_file std_data/uint64.frm $datadir/test/mysql_json.frm
+--copy_file std_data/uint64.MYI $datadir/test/mysql_json.MYI
+--copy_file std_data/uint64.MYD $datadir/test/mysql_json.MYD
+
+
+select * from test.mysql_json;
+drop table mysql_json;
+
+--echo #
+--echo # Negative value worked
 --echo #
 
 --copy_file std_data/negative_value_json.frm $datadir/test/mysql_json.frm
 --copy_file std_data/negative_value_json.MYI $datadir/test/mysql_json.MYI
 --copy_file std_data/negative_value_json.MYD $datadir/test/mysql_json.MYD
 
+
 select * from test.mysql_json;
 drop table mysql_json;
 
 --echo #
---echo # Mix of INT32 and UINT64
+--echo # mix values worked 
+--echo #
+
+--copy_file std_data/ints.frm $datadir/test/mysql_json.frm
+--copy_file std_data/ints.MYI $datadir/test/mysql_json.MYI
+--copy_file std_data/ints.MYD $datadir/test/mysql_json.MYD
+
+select * from test.mysql_json;
+drop table mysql_json;
+
+--echo #
+--echo # Mix of INT32 and UINT64 worked
 --echo #
 
 

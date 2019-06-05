@@ -1,0 +1,62 @@
+drop table if exists mysql_json;
+Warnings:
+Note	1051	Unknown table 'test.mysql_json'
+#
+# uint64 - worked
+#
+select * from test.mysql_json;
+t
+18446744073709551615
+Finshed
+drop table mysql_json;
+#
+# Negative value worked
+#
+select * from test.mysql_json;
+t
+{"neg":-10}
+Finshed
+drop table mysql_json;
+#
+# mix values worked 
+#
+select * from test.mysql_json;
+t
+0
+Finshed
+-127
+Finshed
+128
+Finshed
+32767
+Finshed
+-32768
+Finshed
+65535
+Finshed
+65536
+Finshed
+-2147483648
+Finshed
+2147483647
+Finshed
+4294967295
+Finshed
+-9223372036854775807
+Finshed
+9223372036854775807
+Finshed
+18446744073709551615
+Finshed
+Warnings:
+Error	145	Table './test/mysql_json' is marked as crashed and should be repaired
+Error	1034	1 client is using or hasn't closed the table properly
+drop table mysql_json;
+#
+# Mix of INT32 and UINT64 worked
+#
+select * from test.mysql_json;
+t
+{"neg":-1234567890,"pos":9876543210}
+Finshed
+drop table mysql_json;
