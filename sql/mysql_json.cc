@@ -93,6 +93,25 @@ bool parse_array_or_object(String *buffer,Field_mysql_json::enum_type t,
   char *key_element;
   bool is_last(false);
 
+  if (element_count == 0)
+  {
+    if (t==Field_mysql_json::enum_type::OBJECT)
+    {
+      if(buffer->append("{}"))
+      {
+        return true;
+      }
+    }
+    else
+    {
+      if(buffer->append("[]"))
+      {
+        return true;
+      }
+    }
+    return false;
+  }
+
   for(uint8 i=0; i<element_count; i++)
   {
     if (t==Field_mysql_json::enum_type::OBJECT)

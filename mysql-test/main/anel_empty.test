@@ -1,0 +1,14 @@
+let $datadir=`select @@datadir`;
+drop table if exists mysql_json; 
+
+--echo #
+--echo # Empty object and array
+--echo #
+
+--copy_file std_data/tempty.frm $datadir/test/mysql_json.frm
+--copy_file std_data/tempty.MYI $datadir/test/mysql_json.MYI
+--copy_file std_data/tempty.MYD $datadir/test/mysql_json.MYD
+
+
+select * from test.mysql_json;
+drop table mysql_json;
