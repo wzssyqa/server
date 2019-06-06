@@ -1,0 +1,14 @@
+let $datadir=`select @@datadir`;
+drop table if exists mysql_json; 
+
+--echo #
+--echo # Floats
+--echo #
+
+--copy_file std_data/tfloat.frm $datadir/test/mysql_json.frm
+--copy_file std_data/tfloat.MYI $datadir/test/mysql_json.MYI
+--copy_file std_data/tfloat.MYD $datadir/test/mysql_json.MYD
+
+
+select * from test.mysql_json;
+drop table mysql_json;

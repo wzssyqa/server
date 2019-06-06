@@ -298,63 +298,42 @@ bool parse_mysql_scalar(String* buffer, size_t value_json_type,
     /** FINISHED WORKS **/
     case JSONB_TYPE_INT16 :
     {
-      buffer->append_longlong((longlong) (sint2korr(data)));
+      if(buffer->append_longlong((longlong) (sint2korr(data))))
+      {
+        return true;
+      }
       break;
     }
 
     /** FINISHED WORKS **/
     case JSONB_TYPE_INT32:
     {
-      // depending on large -> can be inline or not-inline value @todo test
-      if(!large)
+      char *value_element;
+      uint num_bytes=MAX_BIGINT_WIDTH;
+      value_element= new char[num_bytes+1];
+      memmove(value_element, const_cast<char*>(&data[0]), num_bytes);
+      value_element[num_bytes+1]= '\0';
+      if( buffer->append_longlong(sint4korr(value_element)))
       {
-        char *value_element;
-        uint num_bytes=MAX_BIGINT_WIDTH;
-        value_element= new char[num_bytes+1];
-        memmove(value_element, const_cast<char*>(&data[0]), num_bytes);
-        value_element[num_bytes+1]= '\0';
-        if( buffer->append_longlong(sint4korr(value_element)))
-        {
-          return true;
-        }
-        delete[] value_element;
-        break;
-      } 
-      else
-      {
-        if( buffer->append_longlong(sint4korr(data+1)))
-        {
-          return true;
-        }
+        return true;
       }
+      delete[] value_element;
       break;
     }
 
     /* FINISHED WORKS  */
     case JSONB_TYPE_INT64:
     {
-      // depending on large -> can be inline or not-inline value @todo test
-      if(!large)
+      char *value_element;
+      uint num_bytes=MAX_BIGINT_WIDTH;
+      value_element= new char[num_bytes+1];
+      memmove(value_element, const_cast<char*>(&data[0]), num_bytes);
+      value_element[num_bytes+1]= '\0';
+      if( buffer->append_longlong(sint8korr(value_element)))
       {
-        char *value_element;
-        uint num_bytes=MAX_BIGINT_WIDTH;
-        value_element= new char[num_bytes+1];
-        memmove(value_element, const_cast<char*>(&data[0]), num_bytes);
-        value_element[num_bytes+1]= '\0';
-        if( buffer->append_longlong(sint8korr(value_element)))
-        {
-          return true;
-        }
-        delete[] value_element;
-        break;
-      } 
-      else
-      {
-        if( buffer->append_longlong(sint4korr(data+1)))
-        {
-          return true;
-        }
+        return true;
       }
+      delete[] value_element;
       break;
     }
     /** FINISHED WORKS **/
@@ -380,31 +359,33 @@ bool parse_mysql_scalar(String* buffer, size_t value_json_type,
     /** FINISHED WORKS **/
     case JSONB_TYPE_UINT64:
     {
-      // depending on large -> can be inline or not-inline value @todo test
-      if(!large)
-      {
-        char *value_element;
-        uint num_bytes=MAX_BIGINT_WIDTH;
+      char *value_element;
+      uint num_bytes=MAX_BIGINT_WIDTH;
 
-        value_element= new char[num_bytes+1];
-        memmove(value_element, const_cast<char*>(&data[0]),num_bytes);
-        value_element[num_bytes+1]= '\0';
-        if( buffer->append_ulonglong(uint8korr(value_element)))
+      value_element= new char[num_bytes+1];
+      memmove(value_element, const_cast<char*>(&data[0]),num_bytes);
+      value_element[num_bytes+1]= '\0';
+      if( buffer->append_ulonglong(uint8korr(value_element)))
       {
         return true;
       }
-        delete[] value_element;
-        break;
-      }
-      else
-      {
-        if( buffer->append_ulonglong(uint8korr(data+1)))
-      {
-        return true;
-      }
-      }
+      delete[] value_element;
       break;
     }
+
+    case JSONB_TYPE_DOUBLE:
+    {
+     //char *end;
+      //double d=strtod(data, &end);
+      // double d;
+      // int error;
+      // d=my_strtod(data, &end, &error);
+      double d;
+      float8get(d, data);
+      buffer->qs_append(&d);
+      break;
+    }
+
     /** FINISHED WORKS **/
     case JSONB_TYPE_STRING:
     {
