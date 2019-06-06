@@ -1,0 +1,22 @@
+let $datadir=`select @@datadir`;
+drop table if exists mysql_json; 
+
+--echo #
+--echo # Date and time (casting in mysql)
+--echo #
+
+--copy_file std_data/tdatetime.frm $datadir/test/mysql_json.frm
+--copy_file std_data/tdatetime.MYI $datadir/test/mysql_json.MYI
+--copy_file std_data/tdatetime.MYD $datadir/test/mysql_json.MYD
+
+
+select * from test.mysql_json;
+drop table mysql_json;
+
+#--echo #
+#--echo # Strings
+#--echo #
+
+#--copy_file std_data/strings.frm $datadir/test/mysql_json.frm
+#--copy_file std_data/strings.MYI $datadir/test/mysql_json.MYI
+#--copy_file std_data/strings.MYD $datadir/test/mysql_json.MYD

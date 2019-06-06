@@ -145,6 +145,8 @@ bool parse_value(String *buffer, size_t type, const char *data, size_t len, bool
 bool parse_array_or_object(String * buffer, Field_mysql_json::enum_type,
                            const char *,size_t , bool);
 bool parse_mysql_scalar(String* buffer, size_t type,
-                        const char *data, bool large, size_t depth);
+                        const char *data, size_t len, bool large, size_t depth);
 
+// static bool read_variable_length(const char *data, size_t data_length,
+//                                  size_t *length, size_t *num)
 #endif  /* MYSQL_JSON_INCLUDED */ 

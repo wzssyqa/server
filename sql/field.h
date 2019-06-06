@@ -4847,6 +4847,24 @@ class Field_mysql_json :public Field_blob
     ERROR /* Not really a type. Used to signal that an
              error was detected. */
   };
+  enum class enum_json_type 
+  {
+    J_NULL,
+    J_DECIMAL,
+    J_INT,
+    J_UINT,
+    J_DOUBLE,
+    J_STRING,
+    J_OBJECT,
+    J_TIMESTAMP,
+    J_ARRAY,
+    J_BOOLEAN,
+    J_DATE,
+    J_TIME,
+    J_DATETIME,
+    J_OPAQUE,
+    J_ERROR
+  };
   String *val_str(String *, String *);
   bool parse_mysql(String*, bool, const char *) const;
 };

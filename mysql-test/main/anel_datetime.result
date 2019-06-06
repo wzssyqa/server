@@ -1,0 +1,20 @@
+drop table if exists mysql_json;
+Warnings:
+Note	1051	Unknown table 'test.mysql_json'
+#
+# Date and time (casting in mysql)
+#
+select * from test.mysql_json;
+t
+2015-01-15 23:24:25.000000
+Finshed
+0000-00-00 23:24:25.000000
+Finshed
+2015-01-15 00:00:00.000000
+Finshed
+2015-01-15 23:24:25.000000
+Finshed
+Warnings:
+Error	145	Table './test/mysql_json' is marked as crashed and should be repaired
+Error	1034	1 client is using or hasn't closed the table properly
+drop table mysql_json;
