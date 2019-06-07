@@ -266,37 +266,6 @@ bool parse_array_or_object(String *buffer,Field_mysql_json::enum_type t,
   return false;
 }
 
-// static bool read_variable_length(const char *data, size_t data_length,
-//                                  size_t *length, size_t *num)
-// {
-//   /*
-//     It takes five bytes to represent UINT_MAX32, which is the largest
-//     supported length, so don't look any further.
-//   */
-//   const size_t max_bytes= std::min(data_length, static_cast<size_t>(5));
-
-//   size_t len= 0;
-//   for (size_t i= 0; i < max_bytes; i++)
-//   {
-//     // Get the next 7 bits of the length.
-//     len|= (data[i] & 0x7f) << (7 * i);
-//     if ((data[i] & 0x80) == 0)
-//     {
-//       // The length shouldn't exceed 32 bits.
-//       if (len > UINT_MAX32)
-//         return true;                          /* purecov: inspected */
-
-//       // This was the last byte. Return successfully.
-//       *num= i + 1;
-//       *length= len;
-//       return false;
-//     }
-//   }
-
-//   // No more available bytes. Return true to signal error.
-//   return true;                                /* purecov: inspected */
-// }
-
 bool parse_mysql_scalar(String* buffer, size_t value_json_type,
                         const char *data, size_t len, bool large, size_t depth)
 {
@@ -467,8 +436,8 @@ bool parse_mysql_scalar(String* buffer, size_t value_json_type,
     {
       // The type is encoded as a uint8 that maps to an enum_field_types @todo anel
       uint8 type_byte= static_cast<uint8>(*data);
-      Field_mysql_json::enum_json_type field_type= 
-      static_cast<Field_mysql_json::enum_json_type>(type_byte);
+      enum_field_types field_type= 
+      static_cast<enum_field_types>(type_byte);
 
       char *value_element;
       // For now we are assuming one byte length
@@ -477,51 +446,30 @@ bool parse_mysql_scalar(String* buffer, size_t value_json_type,
       value_element= new char[length+1];
       memmove(value_element, const_cast<char*>(&data[2]),
               len-2);
+      MYSQL_TIME t;
       switch(field_type)
       {
-        case Field_mysql_json::enum_json_type::J_TIME: //11 mysql
+        case MYSQL_TYPE_TIME: 
         {
-          MYSQL_TIME t;
           TIME_from_longlong_time_packed(&t, sint8korr(value_element));
           delete[] value_element;
-          char *ptr= const_cast<char *>(buffer->ptr())+buffer->length();
-          const int size= my_TIME_to_str(&t, ptr, 6);
-          buffer->length(buffer->length() + size);
           break;
         }
-        case Field_mysql_json::enum_json_type::J_DATE: //10 mysql
+        case MYSQL_TYPE_DATE: 
         //TIME_from_longlong_date_packed(ltime, packed_value); //not defined in sql/compat56.h
-        case Field_mysql_json::enum_json_type::J_TIMESTAMP: //7 mysql
-        case Field_mysql_json::enum_json_type::J_DATETIME: //12 mysql
+        case MYSQL_TYPE_DATETIME:
+        case MYSQL_TYPE_TIMESTAMP: 
         {
-          MYSQL_TIME t;
           TIME_from_longlong_datetime_packed(&t, sint8korr(value_element));
           delete[] value_element;
-          char *ptr= const_cast<char *>(buffer->ptr())+buffer->length();
-          const int size= my_TIME_to_str(&t, ptr, 6);
-          buffer->length(buffer->length() + size);
           break;
         }
         default:
-          break;
+          return false;
       }
-      // value_element[len-1]= '\0';
-      // if( buffer->append(String((const char *)value_element+4, &my_charset_bin)))
-      // {
-      //   return true;
-      // }
-      // // if(parse_value(buffer, type_byte, data+val_len_ptr+1, len, large, 0))
-      // // {
-      // //   return true;
-      // // }
-
-      // Session 2
-      // size_t str_len;
-      // size_t n;
-      // if (read_variable_length(data, len, &str_len, &n))
-      //   return true;
-      // parse_value(buffer, data[0], data+n, str_len, large, 0);
-      
+      char *ptr= const_cast<char *>(buffer->ptr())+buffer->length();
+      const int size= my_TIME_to_str(&t, ptr, 6);
+      buffer->length(buffer->length() + size);
     } // opaque
   }
   return false;
