@@ -455,8 +455,14 @@ bool parse_mysql_scalar(String* buffer, size_t value_json_type,
           delete[] value_element;
           break;
         }
-        case MYSQL_TYPE_DATE: 
-        //TIME_from_longlong_date_packed(ltime, packed_value); //not defined in sql/compat56.h
+        case MYSQL_TYPE_DATE:
+        {
+          //TIME_from_longlong_date_packed(ltime, packed_value); //not defined in sql/compat56.h
+          TIME_from_longlong_datetime_packed(&t, sint8korr(value_element));
+          delete[] value_element;
+          t.time_type= MYSQL_TIMESTAMP_DATE;
+          break;
+        } 
         case MYSQL_TYPE_DATETIME:
         case MYSQL_TYPE_TIMESTAMP: 
         {
