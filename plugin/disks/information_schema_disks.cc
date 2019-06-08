@@ -19,6 +19,7 @@
 #include <mntent.h>
 #include <sql_class.h>
 #include <table.h>
+#include <sql_acl.h>                            /* check_global_access() */
 
 bool schema_table_store_record(THD *thd, TABLE *table);
 
@@ -82,6 +83,9 @@ int disks_fill_table(THD* pThd, TABLE_LIST* pTables, Item* pCond)
 {
     int rv = 1;
     TABLE* pTable = pTables->table;
+
+    if (check_global_access(pThd, FILE_ACL, true))
+      return 0;
 
     FILE* pFile = setmntent("/etc/mtab", "r");
 
