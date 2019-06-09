@@ -434,15 +434,17 @@ bool parse_mysql_scalar(String* buffer, size_t value_json_type,
     /** testing **/
     case JSONB_TYPE_OPAQUE:
     {
-      // The type is encoded as a uint8 that maps to an enum_field_types @todo anel
+      // The type byte is encoded as a uint8 that maps to an enum_field_types
       uint8 type_byte= static_cast<uint8>(*data);
       enum_field_types field_type= 
       static_cast<enum_field_types>(type_byte);
 
       char *value_element;
       // For now we are assuming one byte length
+      // in general it should be calculated depending on 8th bit of ith byte
+      // see read_variable_length() @todo anel
       size_t length; 
-      length= data[1]; // should be calculated depending on 8th bit of ith byte @todo
+      length= data[1]; 
       value_element= new char[length+1];
       memmove(value_element, const_cast<char*>(&data[2]),
               len-2);
@@ -470,9 +472,32 @@ bool parse_mysql_scalar(String* buffer, size_t value_json_type,
           delete[] value_element;
           break;
         }
+        case MYSQL_TYPE_NEWDECIMAL:
+        {
+          my_decimal m; //@todo // need to add test case !
+          return false; 
+        }
+        case MYSQL_TYPE_BIT:
+        {
+          if(buffer->append("base64:type") || buffer->append(':'))
+          {
+            return true;
+          }
+          size_t pos= buffer->length();
+          const size_t needed=
+            static_cast<size_t>(my_base64_needed_encoded_length(length));
+          if(my_base64_encode(value_element, length,
+                      const_cast<char*>(buffer->ptr() + pos)))
+          {
+            return true;
+          }
+          buffer->length(pos+needed-1);
+          return false;
+        }
         default:
           return false;
       }
+      // This part is common to datetime/date/timestamp
       char *ptr= const_cast<char *>(buffer->ptr())+buffer->length();
       const int size= my_TIME_to_str(&t, ptr, 6);
       buffer->length(buffer->length() + size);

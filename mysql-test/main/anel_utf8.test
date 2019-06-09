@@ -1,0 +1,14 @@
+let $datadir=`select @@datadir`;
+drop table if exists mysql_json; 
+
+--echo #
+--echo # auto convert utf8mb4
+--echo #
+
+--copy_file std_data/encode64.frm $datadir/test/mysql_json.frm
+--copy_file std_data/encode64.MYI $datadir/test/mysql_json.MYI
+--copy_file std_data/encode64.MYD $datadir/test/mysql_json.MYD
+
+
+select * from test.mysql_json;
+drop table mysql_json;
