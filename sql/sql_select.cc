@@ -122,7 +122,8 @@ static bool best_extension_by_limited_search(JOIN *join,
                                              uint prune_level,
                                              uint use_cond_selectivity,
                                              table_map previous_tables,
-                                             bool nest_created);
+                                             bool nest_created,
+                                             double *cardinality);
 void trace_plan_prefix(JOIN *join, uint idx, table_map remaining_tables);
 void trace_order_by_nest(JOIN *join, uint idx, table_map remaining_tables);
 static uint determine_search_depth(JOIN* join);
@@ -7929,6 +7930,7 @@ best_access_path(JOIN      *join,
   pos->spl_plan= spl_plan;
   pos->range_rowid_filter_info= best_filter;
   pos->ordering_achieved= FALSE;
+  trace_access_scan.add("use_join_buffer", best_uses_jbuf);
    
   loose_scan_opt.save_to_position(s, loose_scan_pos);
 
@@ -8560,6 +8562,7 @@ greedy_search(JOIN      *join,
   JOIN_TAB  *best_table; // the next plan node to be added to the curr QEP
   // ==join->tables or # tables in the sj-mat nest we're optimizing
   uint      n_tables __attribute__((unused));
+  double cardinality= DBL_MAX;
   DBUG_ENTER("greedy_search");
 
   /* number of tables that remain to be optimized */
@@ -8577,7 +8580,7 @@ greedy_search(JOIN      *join,
     if (best_extension_by_limited_search(join, remaining_tables, idx, record_count,
                                          read_time, search_depth, prune_level,
                                          use_cond_selectivity,
-                                         previous_tables, FALSE))
+                                         previous_tables, FALSE, &cardinality))
       DBUG_RETURN(TRUE);
     /*
       'best_read < DBL_MAX' means that optimizer managed to find
@@ -9318,7 +9321,8 @@ best_extension_by_limited_search(JOIN      *join,
                                  uint      prune_level,
                                  uint      use_cond_selectivity,
                                  table_map previous_tables,
-                                 bool nest_created)
+                                 bool nest_created,
+                                 double *cardinality)
 {
   DBUG_ENTER("best_extension_by_limited_search");
 
@@ -9345,6 +9349,15 @@ best_extension_by_limited_search(JOIN      *join,
   double best_record_count= DBL_MAX;
   double best_read_time=    DBL_MAX;
   bool disable_jbuf= (join->thd->variables.join_cache_level == 0) || nest_created;
+  double fraction_output;
+
+  if (nest_created)
+  {
+    fraction_output= join->select_limit < (*cardinality) ?
+                     (join->select_limit/(*cardinality)) : 1.0;
+  }
+  else
+    fraction_output= 1.0;
 
   DBUG_EXECUTE("opt", print_plan(join, idx, record_count, read_time, read_time,
                                 "part_plan"););
@@ -9388,10 +9401,12 @@ best_extension_by_limited_search(JOIN      *join,
         ? position->range_rowid_filter_info->get_cmp_gain(current_record_count)
         : 0;
       current_read_time=COST_ADD(read_time,
-                                 COST_ADD(position->read_time -
-                                          filter_cmp_gain,
-                                          current_record_count /
-                                          (double) TIME_FOR_COMPARE));
+                                 COST_MULT(
+                                    COST_ADD(position->read_time -
+                                             filter_cmp_gain,
+                                             current_record_count /
+                                             (double) TIME_FOR_COMPARE), fraction_output));
+      current_record_count= COST_MULT(current_record_count, fraction_output);
 
       advance_sj_state(join, remaining_tables, idx, &current_record_count,
                        &current_read_time, &loose_scan_pos);
@@ -9470,7 +9485,7 @@ best_extension_by_limited_search(JOIN      *join,
                                              use_cond_selectivity,
                                              nest_created ? previous_tables :
                                              previous_tables | real_table_bit,
-                                             nest_created))
+                                             nest_created, cardinality))
           DBUG_RETURN(TRUE);
 
         if (!nest_created && !join->emb_sjm_nest && nest_allow &&
@@ -9487,7 +9502,7 @@ best_extension_by_limited_search(JOIN      *join,
                                                0,
                                                use_cond_selectivity,
                                                previous_tables | real_table_bit,
-                                               TRUE))
+                                               TRUE, cardinality))
             DBUG_RETURN(TRUE);
           join->positions[idx].ordering_achieved= FALSE;
         }
@@ -9509,6 +9524,12 @@ best_extension_by_limited_search(JOIN      *join,
              Hence it may be wrong.
           */
           current_read_time= COST_ADD(current_read_time, current_record_count);
+        if (!nest_created)
+        {
+          *cardinality= partial_join_cardinality;
+          trace_one_table.add("cardinality", partial_join_cardinality);
+        }
+        trace_one_table.add("cost_of_plan", current_read_time);
         if (current_read_time < join->best_read)
         {
           memcpy((uchar*) join->best_positions, (uchar*) join->positions,
