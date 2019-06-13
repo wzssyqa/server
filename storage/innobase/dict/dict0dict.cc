@@ -4690,7 +4690,8 @@ col_loop1:
 
 	index = dict_foreign_find_index(
 		table, NULL, column_names, i,
-		NULL, true, FALSE, false, &index_error, &err_col, &err_index);
+		NULL, true, FALSE, fk_period_name != NULL,
+		&index_error, &err_col, &err_index);
 
 	if (!index) {
 		mutex_enter(&dict_foreign_err_mutex);
@@ -6827,7 +6828,9 @@ dict_foreign_qualify_index(
 		// despite it is theoretically possible to construct such
 		// an index with period not at the last positions,
 		// it is not supported at least for now
-		ut_ad(dict_index_get_n_fields(index) == n_cols);
+		if (dict_index_get_n_fields(index) != n_cols) {
+			return(false);
+		}
 
 		if ((index->type & DICT_PERIOD) == 0) {
 			return(false);
