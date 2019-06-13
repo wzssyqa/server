@@ -36,6 +36,8 @@ Created 9/20/1997 Heikki Tuuri
 #include <list>
 #include <vector>
 
+class page_id_t;
+
 /** Is recv_writer_thread active? */
 extern bool	recv_writer_thread_active;
 

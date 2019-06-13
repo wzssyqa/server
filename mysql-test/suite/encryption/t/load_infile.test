@@ -1,0 +1,55 @@
+-- source include/have_innodb.inc
+-- source include/have_file_key_management_plugin.inc
+
+--disable_query_log
+call mtr.add_suppression("InnoDB: The page \\[page id: space=[0-9][0-9]*, page number=6\\] in file '.*test.t2\\.ibd' cannot be decrypted\\.");
+call mtr.add_suppression("InnoDB:  Error code: [0-9][0-9][0-9]* btr_pcur_open_low  level: 0 called from file: .*");
+--enable_query_log
+
+CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT, c VARCHAR(256)) ENGINE=INNODB ENCRYPTED=YES;
+
+--disable_warnings
+--disable_query_log
+begin;
+let $i = 10;
+while ($i)
+{
+INSERT INTO t1 values(NULL, REPEAT('x', 32));
+dec $i;
+}
+commit;
+--enable_warnings
+--enable_query_log
+
+let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
+let MYSQLD_DATADIR=`select @@datadir`;
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval SELECT * FROM t1 INTO OUTFILE "$MYSQLTEST_VARDIR/tmp/t1.outfile";
+
+CREATE TABLE t2 (pk INT, c CHAR(255)) ENGINE=INNODB ENCRYPTED=YES;
+--source include/have_sequence.inc
+INSERT INTO t2 SELECT NULL, 'c' FROM seq_1_to_1000;
+
+--source include/shutdown_mysqld.inc
+--echo # Corrupt the pages
+
+perl;
+my $ps = $ENV{INNODB_PAGE_SIZE};
+
+my $file = "$ENV{MYSQLD_DATADIR}/test/t2.ibd";
+open(FILE, "+<$file") || die "Unable to open $file";
+binmode FILE;
+seek (FILE, $ENV{INNODB_PAGE_SIZE} * 6, SEEK_SET) or die "seek";
+print FILE "junk";
+close FILE or die "close";
+EOF
+
+--source include/start_mysqld.inc
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--error ER_GET_ERRMSG, 192
+eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/t1.outfile' INTO table t2;
+
+DROP TABLE t1, t2;
+--remove_file $MYSQLTEST_VARDIR/tmp/t1.outfile
