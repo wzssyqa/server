@@ -178,10 +178,10 @@ dict_stats_deinit(
 
 	ut_a(table->get_ref_count() == 0);
 
-	dict_table_stats_lock(table, RW_X_LATCH);
+	rw_lock_x_lock(&table->stats_latch);
 
 	if (!table->stat_initialized) {
-		dict_table_stats_unlock(table, RW_X_LATCH);
+		rw_lock_x_unlock(&table->stats_latch);
 		return;
 	}
 
@@ -223,5 +223,5 @@ dict_stats_deinit(
 	}
 #endif /* UNIV_DEBUG_VALGRIND */
 
-	dict_table_stats_unlock(table, RW_X_LATCH);
+	rw_lock_x_unlock(&table->stats_latch);
 }
