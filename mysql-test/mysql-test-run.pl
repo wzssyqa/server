@@ -295,6 +295,7 @@ my $opt_skip_core;
 
 our $opt_check_testcases= 1;
 my $opt_mark_progress;
+my $opt_continue_on_error;
 my $opt_max_connections;
 our $opt_report_times= 0;
 
@@ -355,7 +356,7 @@ my $source_dist=  -d "../sql";
 
 my $opt_max_save_core= env_or_val(MTR_MAX_SAVE_CORE => 5);
 my $opt_max_save_datadir= env_or_val(MTR_MAX_SAVE_DATADIR => 20);
-my $opt_max_test_fail= env_or_val(MTR_MAX_TEST_FAIL => 10);
+my $opt_max_test_fail= $ENV{MTR_MAX_TEST_FAIL};
 my $opt_core_on_failure= 0;
 
 my $opt_parallel= $ENV{MTR_PARALLEL} || 1;
@@ -1130,6 +1131,7 @@ sub command_line_setup {
              'record'                   => \$opt_record,
              'check-testcases!'         => \$opt_check_testcases,
              'mark-progress'            => \$opt_mark_progress,
+             'continue-on-error'        => \$opt_continue_on_error
 
              # Extra options used when starting mysqld
              'mysqld=s'                 => \@opt_extra_mysqld_opt,
@@ -1394,6 +1396,21 @@ sub command_line_setup {
     # Run big tests if explicitly specified on command line
     $opt_big_test= 1;
   }
+
+  if ( undefined($opt_max_test_fail) )
+  {
+    if ( $opt_force )
+    {
+      # --force compatibility
+      $opt_max_test_fail= 10;
+    }
+    else
+    {
+      $opt_max_test_fail= 1;
+    }
+  }
+
+  $opt_continue_on_error= 1 if $opt_force > 1;
 
   # --------------------------------------------------------------------------
   # Find out type of logging that are being used
@@ -5499,6 +5516,11 @@ sub start_mysqltest ($) {
   mtr_add_arg($args, "--mark-progress")
     if $opt_mark_progress;
 
+  if ($opt_continue_on_error)
+  {
+    mtr_add_arg($args, "--continue-on-error");
+  }
+
   mtr_add_arg($args, "--database=test");
 
   if ( $opt_ps_protocol )
@@ -5597,11 +5619,6 @@ sub start_mysqltest ($) {
     mtr_init_args(\$args);
     valgrind_arguments($args, \$exe);
     mtr_add_arg($args, "%s", $_) for @args_saved;
-  }
-
-  if ($opt_force > 1)
-  {
-    mtr_add_arg($args, "--continue-on-error");
   }
 
   my $suite = $tinfo->{suite};
@@ -6088,8 +6105,15 @@ Options to control what test suites or cases to run
   force                 Continue after a failure. When specified once, a
                         failure in a test file will abort this test file, and
                         the execution will continue from the next test file.
+                        The maximum number of tests skipped is controlled by
+                        --max-test-fail.
                         When specified twice, execution will continue executing
                         the failed test file from the next command.
+                        Deprecated.
+                        Use --max-test-fail to continue from the
+                        next test file on failure.
+                        Use --continue-on-error to continue executing
+                        the failed test file
   do-test=PREFIX or REGEX
                         Run test cases which name are prefixed with PREFIX
                         or fulfills REGEX
@@ -6135,6 +6159,9 @@ Options for test case authoring
   record TESTNAME       (Re)genereate the result file for TESTNAME
   check-testcases       Check testcases for sideeffects
   mark-progress         Log line number and elapsed time to <testname>.progress
+  continue-on-error     Continue test immediately from the next command even
+                        if we've got an error.
+                        Same as --force --force
 
 Options that pass on options (these may be repeated)
 
@@ -6188,7 +6215,8 @@ Options for debugging the product
   max-test-fail         Limit the number of test failures before aborting
                         the current test run. Defaults to
                         $opt_max_test_fail, set to 0 for no limit. Set
-                        it's default with MTR_MAX_TEST_FAIL
+                        it's default with MTR_MAX_TEST_FAIL.
+                        Implies --force
   core-in-failure	Generate a core even if run server is run with valgrind
 
 Options for valgrind
