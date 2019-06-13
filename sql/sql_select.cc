@@ -7930,7 +7930,6 @@ best_access_path(JOIN      *join,
   pos->spl_plan= spl_plan;
   pos->range_rowid_filter_info= best_filter;
   pos->ordering_achieved= FALSE;
-  trace_access_scan.add("use_join_buffer", best_uses_jbuf);
    
   loose_scan_opt.save_to_position(s, loose_scan_pos);
 
@@ -8144,6 +8143,32 @@ choose_plan(JOIN *join, table_map join_tables)
                       use_cond_selectivity))
       DBUG_RETURN(TRUE);
   }
+  trace_plan.end();
+
+  bool order_nest= FALSE;
+  for (uint tablenr=0;tablenr < join->table_count;tablenr++)
+  {
+    POSITION *pos= &join->best_positions[tablenr];
+    if (pos->ordering_achieved)
+    {
+      order_nest= TRUE;
+      break;
+    }
+  }
+
+  if (order_nest)
+  {
+    Json_writer_array trace_order_nest(thd, "order_nest");
+
+    for (uint tablenr=0;tablenr < join->table_count;tablenr++)
+    {
+      POSITION *pos= &join->best_positions[tablenr];
+      trace_order_nest.add_table_name(pos->table);
+      if (pos->ordering_achieved)
+        break;
+    }
+  }
+
 
   /* 
     Store the cost of this query into a user variable

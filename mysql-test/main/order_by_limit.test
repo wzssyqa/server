@@ -19,4 +19,5 @@ set optimizer_trace=1;
 explain
 select * from t1,t2,t3 where t1.a=t2.b order by t1.b;
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
-drop table t1,t2,t3;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.order_nest')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1,t2,t3,ten,one_k;

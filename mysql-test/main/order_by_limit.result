@@ -10,6 +10,7 @@ insert into t2 select A.a + B.a* 10, -1 from ten A, ten B;
 create table t3(a int, b int);
 insert into t3 select A.a + B.a* 10 + C.a * 100, A.a + B.a* 10 + C.a * 100 from ten A, ten B, ten C;
 set optimizer_trace=1;
+the best plan would be having an order nest on (t2,t1)
 explain
 select * from t1,t2,t3 where t1.a=t2.b order by t1.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -84,7 +85,9 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                                         "chosen": true
                                     }
                                 ]
-                            }
+                            },
+                            "cardinality": 1.02e8,
+                            "cost_of_plan": 1.22e8
                         },
                         
                         {
@@ -111,7 +114,8 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                                         "chosen": true
                                     }
                                 ]
-                            }
+                            },
+                            "cost_of_plan": 2.1e7
                         }
                     ]
                 },
@@ -184,4 +188,13 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
         }
     ]
 ]
-drop table t1,t2,t3;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.order_nest')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.order_nest'))
+[
+    
+    [
+        "t2",
+        "t1"
+    ]
+]
+drop table t1,t2,t3,ten,one_k;
