@@ -52,14 +52,12 @@ public:
 	@param[in]	index		B-tree index
 	@param[in]	page_no		page number
 	@param[in]	level		page level
-	@param[in]	trx_id		transaction id
-	@param[in]	observer	flush observer */
+	@param[in]	trx_id		transaction id */
 	PageBulk(
 		dict_index_t*	index,
 		trx_id_t	trx_id,
 		ulint		page_no,
-		ulint		level,
-		FlushObserver*	observer)
+		ulint		level)
 		:
 		m_heap(NULL),
 		m_index(index),
@@ -80,7 +78,6 @@ public:
 		m_total_data(0),
 #endif /* UNIV_DEBUG */
 		m_modify_clock(0),
-		m_flush_observer(observer),
 		m_err(DB_SUCCESS)
 	{
 		ut_ad(!dict_index_is_spatial(m_index));
@@ -257,9 +254,6 @@ private:
 	when the block is re-pinned */
 	ib_uint64_t     m_modify_clock;
 
-	/** Flush observer, or NULL if redo logging is enabled */
-	FlushObserver*	m_flush_observer;
-
 	/** Operation result DB_SUCCESS or error code */
 	dberr_t		m_err;
 };
@@ -272,31 +266,15 @@ class BtrBulk
 public:
 	/** Constructor
 	@param[in]	index		B-tree index
-	@param[in]	trx		transaction
-	@param[in]	observer	flush observer */
+	@param[in]	trx		transaction */
 	BtrBulk(
 		dict_index_t*	index,
-		const trx_t*	trx,
-		FlushObserver*	observer)
+		const trx_t*	trx)
 		:
 		m_index(index),
-		m_trx(trx),
-		m_flush_observer(observer)
+		m_trx(trx)
 	{
 		ut_ad(!dict_index_is_spatial(index));
-#ifdef UNIV_DEBUG
-		if (m_flush_observer)
-			m_index->table->space->redo_skipped_count++;
-#endif /* UNIV_DEBUG */
-	}
-
-	/** Destructor */
-	~BtrBulk()
-	{
-#ifdef UNIV_DEBUG
-		if (m_flush_observer)
-			m_index->table->space->redo_skipped_count--;
-#endif /* UNIV_DEBUG */
 	}
 
 	/** Insert a tuple
@@ -367,9 +345,6 @@ private:
 
 	/** Root page level */
 	ulint			m_root_level;
-
-	/** Flush observer, or NULL if redo logging is enabled */
-	FlushObserver*const	m_flush_observer;
 
 	/** Page cursor vector for all level */
 	page_bulk_vector	m_page_bulks;

@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -171,9 +171,6 @@ struct mtr_t {
 
 		/** State of the transaction */
 		mtr_state_t	m_state;
-
-		/** Flush Observer */
-		FlushObserver*	m_flush_observer;
 
 #ifdef UNIV_DEBUG
 		/** For checking corruption. */
@@ -401,23 +398,6 @@ struct mtr_t {
 	bool is_active() const
 	{
 		return(m_impl.m_state == MTR_STATE_ACTIVE);
-	}
-
-	/** Get flush observer
-	@return flush observer */
-	FlushObserver* get_flush_observer() const
-	{
-		return(m_impl.m_flush_observer);
-	}
-
-	/** Set flush observer
-	@param[in]	observer	flush observer */
-	void set_flush_observer(FlushObserver*	observer)
-	{
-		ut_ad(observer == NULL
-		      || m_impl.m_log_mode == MTR_LOG_NO_REDO);
-
-		m_impl.m_flush_observer = observer;
 	}
 
 #ifdef UNIV_DEBUG

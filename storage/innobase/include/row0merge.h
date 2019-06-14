@@ -292,12 +292,6 @@ row_merge_drop_table(
 	dict_table_t*	table)		/*!< in: table instance to drop */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-/** Write an MLOG_INDEX_LOAD record to indicate in the redo-log
-that redo-logging of individual index pages was disabled, and
-the flushing of such pages to the data files was completed.
-@param[in]	index	an index tree on which redo logging was disabled */
-void row_merge_write_redo(const dict_index_t* index);
-
 /** Build indexes on a table by reading a clustered index, creating a temporary
 file containing index entries, merge sorting these index entries and inserting
 sorted index entries to indexes.

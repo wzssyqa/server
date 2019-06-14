@@ -33,8 +33,6 @@ Created 03/11/2014 Shaohua Wang
 
 /** Innodb B-tree index fill factor for bulk load. */
 uint	innobase_fill_factor;
-/** whether to reduce redo logging during ALTER TABLE */
-my_bool	innodb_log_optimize_ddl;
 
 /** Initialize members, allocate page if needed and start mtr.
 Note: we commit all mtrs on failure.
@@ -52,12 +50,7 @@ PageBulk::init()
 
 	m_mtr.start();
 	mtr_x_lock(&m_index->lock, &m_mtr);
-	if (m_flush_observer) {
-		m_mtr.set_log_mode(MTR_LOG_NO_REDO);
-		m_mtr.set_flush_observer(m_flush_observer);
-	} else {
-		m_index->set_modified(m_mtr);
-	}
+	m_index->set_modified(m_mtr);
 
 	if (m_page_no == FIL_NULL) {
 		mtr_t	alloc_mtr;
@@ -233,7 +226,7 @@ PageBulk::insert(
 	m_heap_top += rec_size;
 	m_rec_no += 1;
 
-	if (!m_flush_observer && !m_page_zip) {
+	if (!m_page_zip) {
 		/* For ROW_FORMAT=COMPRESSED, redo log may be written
 		in PageBulk::compress(). */
 		page_cur_insert_rec_write_log(insert_rec, rec_size,
@@ -306,7 +299,7 @@ PageBulk::finish()
 	ut_ad(!dict_index_is_spatial(m_index));
 	ut_ad(!page_get_instant(m_page));
 
-	if (!m_flush_observer && !m_page_zip) {
+	if (!m_page_zip) {
 		mlog_write_ulint(PAGE_HEADER + PAGE_N_DIR_SLOTS + m_page,
 				 2 + slot_index, MLOG_2BYTES, &m_mtr);
 		mlog_write_ulint(PAGE_HEADER + PAGE_HEAP_TOP + m_page,
@@ -652,12 +645,7 @@ PageBulk::latch()
 {
 	m_mtr.start();
 	mtr_x_lock(&m_index->lock, &m_mtr);
-	if (m_flush_observer) {
-		m_mtr.set_log_mode(MTR_LOG_NO_REDO);
-		m_mtr.set_flush_observer(m_flush_observer);
-	} else {
-		m_index->set_modified(m_mtr);
-	}
+	m_index->set_modified(m_mtr);
 
 	/* In case the block is S-latched by page_cleaner. */
 	if (!buf_page_optimistic_get(RW_X_LATCH, m_block, m_modify_clock,
@@ -700,7 +688,7 @@ BtrBulk::pageSplit(
 
 	/* 2. create a new page. */
 	PageBulk new_page_bulk(m_index, m_trx->id, FIL_NULL,
-			       page_bulk->getLevel(), m_flush_observer);
+			       page_bulk->getLevel());
 	dberr_t	err = new_page_bulk.init();
 	if (err != DB_SUCCESS) {
 		return(err);
@@ -830,7 +818,7 @@ BtrBulk::insert(
 	if (level + 1 > m_page_bulks.size()) {
 		PageBulk*	new_page_bulk
 			= UT_NEW_NOKEY(PageBulk(m_index, m_trx->id, FIL_NULL,
-						level, m_flush_observer));
+						level));
 		err = new_page_bulk->init();
 		if (err != DB_SUCCESS) {
 			UT_DELETE(new_page_bulk);
@@ -884,8 +872,7 @@ BtrBulk::insert(
 		/* Create a sibling page_bulk. */
 		PageBulk*	sibling_page_bulk;
 		sibling_page_bulk = UT_NEW_NOKEY(PageBulk(m_index, m_trx->id,
-							  FIL_NULL, level,
-							  m_flush_observer));
+							  FIL_NULL, level));
 		err = sibling_page_bulk->init();
 		if (err != DB_SUCCESS) {
 			UT_DELETE(sibling_page_bulk);
@@ -910,10 +897,6 @@ BtrBulk::insert(
 		/* Important: log_free_check whether we need a checkpoint. */
 		if (page_is_leaf(sibling_page_bulk->getPage())) {
 			if (trx_is_interrupted(m_trx)) {
-				if (m_flush_observer) {
-					m_flush_observer->interrupted();
-				}
-
 				err = DB_INTERRUPTED;
 				goto func_exit;
 			}
@@ -1007,8 +990,7 @@ BtrBulk::finish(dberr_t	err)
 		mtr_t		mtr;
 		buf_block_t*	last_block;
 		PageBulk	root_page_bulk(m_index, m_trx->id,
-					       m_index->page, m_root_level,
-					       m_flush_observer);
+					       m_index->page, m_root_level);
 
 		mtr.start();
 		m_index->set_modified(mtr);
@@ -1033,9 +1015,6 @@ BtrBulk::finish(dberr_t	err)
 
 		/* Remove last page. */
 		btr_page_free(m_index, last_block, &mtr);
-
-		/* Do not flush the last page. */
-		last_block->page.flush_observer = NULL;
 
 		mtr.commit();
 
