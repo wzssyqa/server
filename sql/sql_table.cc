@@ -11407,7 +11407,7 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
           (!thd->is_current_stmt_binlog_format_row() ||
            !create_info.tmp_table()))
       {
-        WSREP_TO_ISOLATION_BEGIN(create_table->db.str, create_table->table_name.str, NULL)
+        WSREP_TO_ISOLATION_BEGIN(create_table->db.str, create_table->table_name.str, NULL);
       }
       /* Regular CREATE TABLE */
       res= mysql_create_table(thd, create_table, &create_info, &alter_info);
