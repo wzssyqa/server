@@ -430,7 +430,7 @@ Suggests: mailx,
           tinyca
 Recommends: libhtml-template-perl
 Pre-Depends: adduser (>= 3.40),
-             debconf,
+             debconf, init-system-helpers,
              mariadb-common (>= ${source:Version})
 Depends: galera-4 (>=26.4),
          gawk,
