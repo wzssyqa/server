@@ -166,7 +166,6 @@ public:
   */
   LEX_CSTRING collation_specific_name() const;
   bool encoding_allows_reinterpret_as(CHARSET_INFO *cs) const;
-  bool encoding_and_order_allow_reinterpret_as(CHARSET_INFO *cs) const;
 };
 
 
