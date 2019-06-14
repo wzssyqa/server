@@ -43,9 +43,6 @@ enum mtr_log_t {
 
 	/** Don't generate REDO log but add dirty pages to flush list */
 	MTR_LOG_NO_REDO = 23,
-
-	/** Inserts are logged in a shorter form */
-	MTR_LOG_SHORT_INSERTS = 24
 };
 
 /** @name Log item types

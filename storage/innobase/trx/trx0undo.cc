@@ -472,9 +472,6 @@ static void trx_undo_page_init(buf_block_t* undo_block, mtr_t* mtr)
 	case MTR_LOG_NONE:
 	case MTR_LOG_NO_REDO:
 		return;
-	case MTR_LOG_SHORT_INSERTS:
-		ut_ad(0);
-		/* fall through */
 	case MTR_LOG_ALL:
 		break;
 	}

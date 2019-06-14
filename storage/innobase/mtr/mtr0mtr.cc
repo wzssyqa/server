@@ -617,7 +617,6 @@ mtr_t::is_named_space(ulint space) const
 	case MTR_LOG_NO_REDO:
 		return(true);
 	case MTR_LOG_ALL:
-	case MTR_LOG_SHORT_INSERTS:
 		return(m_impl.m_user_space_id == space
 		       || is_predefined_tablespace(space));
 	}
@@ -639,7 +638,6 @@ bool mtr_t::is_named_space(const fil_space_t* space) const
 	case MTR_LOG_NO_REDO:
 		return true;
 	case MTR_LOG_ALL:
-	case MTR_LOG_SHORT_INSERTS:
 		return(m_impl.m_user_space == space
 		       || is_predefined_tablespace(space->id));
 	}
@@ -738,9 +736,6 @@ mtr_t::Command::prepare_write()
 	ut_ad(!recv_no_log_write);
 
 	switch (m_impl->m_log_mode) {
-	case MTR_LOG_SHORT_INSERTS:
-		ut_ad(0);
-		/* fall through (write no redo log) */
 	case MTR_LOG_NO_REDO:
 	case MTR_LOG_NONE:
 		ut_ad(m_impl->m_log.size() == 0);

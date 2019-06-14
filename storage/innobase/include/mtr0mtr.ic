@@ -185,7 +185,7 @@ mtr_log_t
 mtr_t::get_log_mode() const
 {
 	ut_ad(m_impl.m_log_mode >= MTR_LOG_ALL);
-	ut_ad(m_impl.m_log_mode <= MTR_LOG_SHORT_INSERTS);
+	ut_ad(m_impl.m_log_mode <= MTR_LOG_NO_REDO);
 
 	return(m_impl.m_log_mode);
 }
@@ -198,7 +198,7 @@ mtr_log_t
 mtr_t::set_log_mode(mtr_log_t mode)
 {
 	ut_ad(mode >= MTR_LOG_ALL);
-	ut_ad(mode <= MTR_LOG_SHORT_INSERTS);
+	ut_ad(mode <= MTR_LOG_NO_REDO);
 
 	const mtr_log_t	old_mode = m_impl.m_log_mode;
 
@@ -208,12 +208,10 @@ mtr_t::set_log_mode(mtr_log_t mode)
 		ut_ad(mode == MTR_LOG_NO_REDO || mode == MTR_LOG_NONE);
 		return(old_mode);
 	case MTR_LOG_NONE:
-		if (mode == old_mode || mode == MTR_LOG_SHORT_INSERTS) {
+		if (mode == old_mode) {
 			/* Keep MTR_LOG_NONE. */
 			return(old_mode);
 		}
-		/* fall through */
-	case MTR_LOG_SHORT_INSERTS:
 		ut_ad(mode == MTR_LOG_ALL);
 		/* fall through */
 	case MTR_LOG_ALL:
