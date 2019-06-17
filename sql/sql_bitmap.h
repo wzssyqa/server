@@ -27,29 +27,69 @@
 #include <my_bitmap.h>
 #include <my_bit.h>
 
-/* An iterator to quickly walk over bits in unlonglong bitmap. */
+
+#ifdef _MSC_VER
+#include <intrin.h>
+#endif
+
+#if defined(__GNUC__) || defined (_MSC_VER)
+#define HAVE_BITSCAN_INTRINSICS
+#endif
+
+/* An iterator to quickly walk over bits in ulonglong bitmap. */
 class Table_map_iterator
 {
   ulonglong bmp;
-  uint no;
-public:
-  Table_map_iterator(ulonglong t) : bmp(t), no(0) {}
-  int next_bit()
+#ifndef  HAVE_BITSCAN_INTRINSICS
+  uint offset;
+#endif
+
+  /*
+    Find the position of the first(least significant) bit set in bmp.
+  */
+  uint bit_scan()
   {
+    DBUG_ASSERT(bmp);
+#ifndef HAVE_BITSCAN_INTRINSICS
     static const char last_bit[16] = { 32, 0, 1, 0,
                                       2, 0, 1, 0,
                                       3, 0, 1, 0,
                                       2, 0, 1, 0 };
     uint bit;
-    while ((bit= last_bit[bmp & 0xF]) == 32)
-    {
-      no += 4;
-      bmp= bmp >> 4;
-      if (!bmp)
-        return BITMAP_END;
-    }
-    bmp &= ~(1LL << bit);
-    return no + bit;
+    while ((bit = last_bit[(bmp >> offset) & 0xF]) == 32)
+      offset += 4;
+    return offset + bit;
+#elif defined(__GNUC__)
+    return __builtin_ctzll(bmp);
+#elif defined(_MSC_VER)
+    unsigned long bit;
+#if defined(_M_IX86)
+    if (_BitScanForward(&bit, (uint)bmp))
+      return bit;
+    _BitScanForward(&bit, (uint)(bmp >> 32));
+    return bit + 32;
+#else
+    _BitScanForward64(&bit, bmp);
+    return bit;
+#endif
+#endif
+  }
+
+public:
+  Table_map_iterator(ulonglong t): bmp(t)
+#ifndef HAVE_BITSCAN_INTRINSICS
+    ,offset(0)
+#endif
+  {
+  }
+  uint next_bit()
+  {
+    if (!bmp)
+      return BITMAP_END;
+
+    uint bit= bit_scan();
+    bmp &= ~(1ULL << bit);
+    return bit;
   }
   int operator++(int) { return next_bit(); }
   enum { BITMAP_END= 64 };
