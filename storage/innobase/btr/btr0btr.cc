@@ -1386,27 +1386,14 @@ btr_write_autoinc(dict_index_t* index, ib_uint64_t autoinc, bool reset)
 	mtr.commit();
 }
 
-/*************************************************************//**
-Reorganizes an index page.
-
-IMPORTANT: On success, the caller will have to update IBUF_BITMAP_FREE
-if this is a compressed leaf page in a secondary index. This has to
-be done either within the same mini-transaction, or by invoking
-ibuf_reset_free_bits() before mtr_commit(). On uncompressed pages,
-IBUF_BITMAP_FREE is unaffected by reorganization.
-
-@retval true if the operation was successful
-@retval false if it is a compressed page, and recompression failed */
-bool
+/** Reorganize an index page. */
+static void
 btr_page_reorganize_low(
-/*====================*/
 	bool		recovery,/*!< in: true if called in recovery:
 				locks should not be updated, i.e.,
 				there cannot exist locks on the
 				page, and a hash index should not be
 				dropped: it cannot exist */
-	ulint		z_level,/*!< in: compression level to be used
-				if dealing with compressed page */
 	page_cur_t*	cursor,	/*!< in/out: page cursor */
 	dict_index_t*	index,	/*!< in: the index tree of the page */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
@@ -1414,18 +1401,17 @@ btr_page_reorganize_low(
 	buf_block_t*	block		= page_cur_get_block(cursor);
 	buf_pool_t*	buf_pool	= buf_pool_from_bpage(&block->page);
 	page_t*		page		= buf_block_get_frame(block);
-	page_zip_des_t*	page_zip	= buf_block_get_page_zip(block);
 	buf_block_t*	temp_block;
 	page_t*		temp_page;
 	ulint		data_size1;
 	ulint		data_size2;
 	ulint		max_ins_size1;
 	ulint		max_ins_size2;
-	bool		success		= false;
 	ulint		pos;
 	bool		is_spatial;
 
 	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
+	ut_ad(!buf_block_get_page_zip(block));
 	btr_assert_not_corrupted(block, index);
 	ut_ad(fil_page_index_page_check(block->frame));
 	ut_ad(index->is_dummy
@@ -1433,9 +1419,6 @@ btr_page_reorganize_low(
 	ut_ad(index->is_dummy
 	      || block->page.id.page_no() != index->page
 	      || !page_has_siblings(page));
-#ifdef UNIV_ZIP_DEBUG
-	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
-#endif /* UNIV_ZIP_DEBUG */
 	data_size1 = page_get_data_size(page);
 	max_ins_size1 = page_get_max_insert_size_after_reorganize(page, 1);
 	/* Turn logging off */
@@ -1497,47 +1480,15 @@ btr_page_reorganize_low(
 		  ? page_is_leaf(temp_page)
 		  : block->page.id.page_no() == index->page));
 
-	if (page_zip
-	    && !page_zip_compress(block, index, z_level, mtr)) {
-
-		/* Restore the old page and exit. */
-#if defined UNIV_DEBUG || defined UNIV_ZIP_DEBUG
-		/* Check that the bytes that we skip are identical. */
-		ut_a(!memcmp(page, temp_page, PAGE_HEADER));
-		ut_a(!memcmp(PAGE_HEADER + PAGE_N_RECS + page,
-			     PAGE_HEADER + PAGE_N_RECS + temp_page,
-			     PAGE_DATA - (PAGE_HEADER + PAGE_N_RECS)));
-		ut_a(!memcmp(srv_page_size - FIL_PAGE_DATA_END + page,
-			     srv_page_size - FIL_PAGE_DATA_END + temp_page,
-			     FIL_PAGE_DATA_END));
-#endif /* UNIV_DEBUG || UNIV_ZIP_DEBUG */
-
-		memcpy(PAGE_HEADER + page, PAGE_HEADER + temp_page,
-		       PAGE_N_RECS - PAGE_N_DIR_SLOTS);
-		memcpy(PAGE_DATA + page, PAGE_DATA + temp_page,
-		       srv_page_size - PAGE_DATA - FIL_PAGE_DATA_END);
-
-#if defined UNIV_DEBUG || defined UNIV_ZIP_DEBUG
-		ut_a(!memcmp(page, temp_page, srv_page_size));
-#endif /* UNIV_DEBUG || UNIV_ZIP_DEBUG */
-
-		goto func_exit;
-	}
-
 	data_size2 = page_get_data_size(page);
 	max_ins_size2 = page_get_max_insert_size_after_reorganize(page, 1);
 
 	if (data_size1 != data_size2 || max_ins_size1 != max_ins_size2) {
-		ib::error()
+		ib::fatal()
 			<< "Page old data size " << data_size1
 			<< " new data size " << data_size2
 			<< ", page old max ins size " << max_ins_size1
 			<< " new max ins size " << max_ins_size2;
-
-		ib::error() << BUG_REPORT_MSG;
-		ut_ad(0);
-	} else {
-		success = true;
 	}
 
 	/* Restore the cursor position. */
@@ -1547,15 +1498,10 @@ btr_page_reorganize_low(
 		ut_ad(cursor->rec == page_get_infimum_rec(page));
 	}
 
-#ifdef UNIV_ZIP_DEBUG
-	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
-#endif /* UNIV_ZIP_DEBUG */
-
 	if (!recovery) {
 		if (block->page.id.page_no() == index->page
 		    && fil_page_get_type(temp_page) == FIL_PAGE_TYPE_INSTANT) {
 			/* Preserve the PAGE_INSTANT information. */
-			ut_ad(!page_zip);
 			ut_ad(index->is_instant());
 			memcpy(FIL_PAGE_TYPE + page,
 			       FIL_PAGE_TYPE + temp_page, 2);
@@ -1581,37 +1527,18 @@ btr_page_reorganize_low(
 		}
 	}
 
-func_exit:
 	buf_block_free(temp_block);
 
 	/* Restore logging mode */
 	mtr_set_log_mode(mtr, log_mode);
 
-	if (success) {
-		mlog_id_t	type;
-
-		/* Write the log record */
-		if (page_zip) {
-			ut_ad(page_is_comp(page));
-			type = MLOG_ZIP_PAGE_REORGANIZE;
-		} else if (page_is_comp(page)) {
-			type = MLOG_COMP_PAGE_REORGANIZE;
-		} else {
-			type = MLOG_PAGE_REORGANIZE;
-		}
-
-		if (byte* log_ptr = mlog_open_and_write_index(
-			    mtr, page, index, type, page_zip ? 1 : 0)) {
-			*log_ptr++ = z_level;
-			mlog_close(mtr, log_ptr);
-		}
-
-		MONITOR_INC(MONITOR_INDEX_REORG_SUCCESSFUL);
-	}
+	mlog_open_and_write_index(mtr, page, index, page_is_comp(page)
+				  ? MLOG_COMP_PAGE_REORGANIZE
+				  : MLOG_PAGE_REORGANIZE, 0);
+	MONITOR_INC(MONITOR_INDEX_REORG_SUCCESSFUL);
 
 	if (UNIV_UNLIKELY(fil_page_get_type(page) == FIL_PAGE_TYPE_INSTANT)) {
 		/* Log the PAGE_INSTANT information. */
-		ut_ad(!page_zip);
 		ut_ad(index->is_instant());
 		ut_ad(!recovery);
 		mlog_write_ulint(FIL_PAGE_TYPE + page, FIL_PAGE_TYPE_INSTANT,
@@ -1629,8 +1556,6 @@ func_exit:
 			mlog_log_string(PAGE_OLD_SUPREMUM + page, 8, mtr);
 		}
 	}
-
-	return(success);
 }
 
 /*************************************************************//**
@@ -1658,10 +1583,15 @@ btr_page_reorganize_block(
 	dict_index_t*	index,	/*!< in: the index tree of the page */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
+	if (buf_block_get_page_zip(block)) {
+		return page_zip_reorganize(block, index, z_level, mtr, true);
+	}
+
 	page_cur_t	cur;
 	page_cur_set_before_first(block, &cur);
 
-	return(btr_page_reorganize_low(recovery, z_level, &cur, index, mtr));
+	btr_page_reorganize_low(recovery, &cur, index, mtr);
+	return true;
 }
 
 /*************************************************************//**
@@ -1682,8 +1612,24 @@ btr_page_reorganize(
 	dict_index_t*	index,	/*!< in: the index tree of the page */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
-	return(btr_page_reorganize_low(false, page_zip_level,
-				       cursor, index, mtr));
+	if (!buf_block_get_page_zip(cursor->block)) {
+		btr_page_reorganize_low(false, cursor, index, mtr);
+		return true;
+	}
+
+	ulint pos = page_rec_get_n_recs_before(cursor->rec);
+	if (!page_zip_reorganize(cursor->block, index, page_zip_level, mtr,
+				 true)) {
+		return false;
+	}
+	if (pos) {
+		cursor->rec = page_rec_get_nth(cursor->block->frame, pos);
+	} else {
+		ut_ad(cursor->rec == page_get_infimum_rec(
+			      cursor->block->frame));
+	}
+
+	return true;
 }
 
 /***********************************************************//**

@@ -1565,9 +1565,22 @@ page_cur_insert_rec_zip(
 		} else if (!page_zip->m_nonempty && !page_has_garbage(page)) {
 			/* The page has been freshly compressed, so
 			reorganizing it will not help. */
-		} else if (btr_page_reorganize_low(
-				   recv_recovery_is_on(), level,
-				   cursor, index, mtr)) {
+		} else {
+			ulint pos = page_rec_get_n_recs_before(cursor->rec);
+
+			if (!page_zip_reorganize(page_cur_get_block(cursor),
+						 index, level, mtr, true)) {
+				ut_ad(cursor->rec == cursor_rec);
+				return NULL;
+			}
+
+			if (pos) {
+				cursor->rec = page_rec_get_nth(page, pos);
+			} else {
+				ut_ad(cursor->rec == page_get_infimum_rec(
+					      page));
+			}
+
 			ut_ad(!page_header_get_ptr(page, PAGE_FREE));
 
 			if (page_zip_available(
@@ -1577,9 +1590,6 @@ page_cur_insert_rec_zip(
 				available. */
 				goto use_heap;
 			}
-		} else {
-			ut_ad(cursor->rec == cursor_rec);
-			return(NULL);
 		}
 
 		/* Try compressing the whole page afterwards. */
