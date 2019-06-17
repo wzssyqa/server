@@ -63,14 +63,14 @@ ORDER BY 1, 2, 3;
 database_name	test
 table_name	t
 index_name	b
-compress_ops	43
-compress_ops_ok	43
+compress_ops	52
+compress_ops_ok	52
 uncompress_ops	0
 database_name	test
 table_name	t
 index_name	PRIMARY
-compress_ops	65
-compress_ops_ok	65
+compress_ops	64
+compress_ops_ok	64
 uncompress_ops	0
 # restart
 SHOW CREATE TABLE t;
@@ -100,6 +100,6 @@ table_name	t
 index_name	PRIMARY
 compress_ops	0
 compress_ops_ok	0
-uncompress_ops	4
+uncompress_ops	2
 DROP TABLE t;
 SET GLOBAL innodb_cmp_per_index_enabled=default;

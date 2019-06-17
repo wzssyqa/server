@@ -59,10 +59,6 @@ extern uint	page_zip_level;
 /** 'deleted' flag */
 #define PAGE_ZIP_DIR_SLOT_DEL		0x8000U
 
-/* Whether or not to log compressed page images to avoid possible
-compression algorithm changes in zlib. */
-extern my_bool	page_zip_log_pages;
-
 /**********************************************************************//**
 Determine the size of a compressed page in bytes.
 @return size in bytes */
