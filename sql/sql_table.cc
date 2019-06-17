@@ -6568,7 +6568,7 @@ Compare_keys compare_keys_but_name(const KEY *table_key, const KEY *new_key,
                       ((Field_varstring *) old_field)->length_bytes);
     }
 
-    uint is_equal= key_part->field->is_equal(new_field);
+    uint is_equal= key_part->field->is_equal(*new_field);
     if (key_part->length == old_field_len &&
         key_part->length < new_part->length &&
         (is_equal == IS_EQUAL_PACK_LENGTH ||
@@ -6772,7 +6772,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
       /*
         Check if type of column has changed to some incompatible type.
       */
-      uint is_equal= field->is_equal(new_field);
+      uint is_equal= field->is_equal(*new_field);
       switch (process_is_equal_result_for_key_parts(is_equal, field, new_field))
       {
       case IS_EQUAL_NO:
@@ -7294,7 +7294,7 @@ bool mysql_compare_tables(TABLE *table,
       DBUG_RETURN(false);
 
     /* Evaluate changes bitmap and send to check_if_incompatible_data() */
-    uint field_changes= field->is_equal(tmp_new_field);
+    uint field_changes= field->is_equal(*tmp_new_field);
     if (field_changes != IS_EQUAL_YES)
       DBUG_RETURN(false);
 
@@ -8797,7 +8797,7 @@ fk_check_column_changes(THD *thd, Alter_info *alter_info,
         return FK_COLUMN_RENAMED;
       }
 
-      if ((old_field->is_equal(new_field) == IS_EQUAL_NO) ||
+      if ((old_field->is_equal(*new_field) == IS_EQUAL_NO) ||
           ((new_field->flags & NOT_NULL_FLAG) &&
            !(old_field->flags & NOT_NULL_FLAG)))
       {
